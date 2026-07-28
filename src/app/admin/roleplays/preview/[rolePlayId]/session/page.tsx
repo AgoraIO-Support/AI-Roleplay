@@ -223,6 +223,7 @@ export default function RolePlayPreviewSessionPage() {
   const transcriptItemMapRef = useRef<Map<string, ToolkitTranscriptItem>>(new Map());
   const finalizedTranscriptKeysRef = useRef<Set<string>>(new Set());
   const pushToTalkEnabledRef = useRef(true);
+  const captionScrollRef = useRef<HTMLDivElement | null>(null);
 
   const requiredGoals = learnerGoals.filter((goal) => goal.required);
   const controlsLocked = simulationState === "ending" || simulationState === "finished";
@@ -796,6 +797,13 @@ export default function RolePlayPreviewSessionPage() {
     return aiCaptions.length > 0 ? aiCaptions[aiCaptions.length - 1] : null;
   }, [normalizedTranscript]);
 
+  useEffect(() => {
+    const captionContainer = captionScrollRef.current;
+    if (!captionContainer) return;
+
+    captionContainer.scrollTop = captionContainer.scrollHeight;
+  }, [latestAiCaption?.text]);
+
   if (!config || (!sessionUser && !accessDenied)) {
     return (
       <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.14),transparent_34%),linear-gradient(180deg,#f8fbff,#f4f7fb)] px-6 py-8 text-slate-950">
@@ -1280,7 +1288,7 @@ export default function RolePlayPreviewSessionPage() {
                 </span>
               </div>
               {captionsOpen && (
-                <div className="mx-auto mt-6 min-h-[104px] w-full max-w-2xl rounded-[1.75rem] border border-slate-200 bg-slate-950 px-5 py-4 text-left shadow-[0_24px_60px_-36px_rgba(15,23,42,0.7)]">
+                <div className="mx-auto mt-6 flex h-[156px] w-full max-w-2xl flex-col rounded-[1.75rem] border border-slate-200 bg-slate-950 px-5 py-4 text-left shadow-[0_24px_60px_-36px_rgba(15,23,42,0.7)] sm:h-[176px]">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">
                       {config.character.name}
@@ -1293,12 +1301,17 @@ export default function RolePlayPreviewSessionPage() {
                         : "Waiting"}
                     </span>
                   </div>
-                  <p className="mt-3 text-lg font-medium leading-8 text-white">
-                    {latestAiCaption?.text ??
-                      (callStatus === "In Call"
-                        ? "Waiting for the AI customer to speak..."
-                        : "AI customer captions will appear here once the call starts.")}
-                  </p>
+                  <div
+                    ref={captionScrollRef}
+                    className="mt-3 min-h-0 flex-1 overflow-y-auto pr-2 [scrollbar-width:thin]"
+                  >
+                    <p className="text-base font-medium leading-7 text-white">
+                      {latestAiCaption?.text ??
+                        (callStatus === "In Call"
+                          ? "Waiting for the AI customer to speak..."
+                          : "AI customer captions will appear here once the call starts.")}
+                    </p>
+                  </div>
                 </div>
               )}
               {pushToTalkEnabled && (
