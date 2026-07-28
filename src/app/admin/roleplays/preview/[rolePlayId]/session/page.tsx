@@ -61,6 +61,16 @@ type DataStreamTranscriptMessage = {
   turn_status?: number;
 };
 
+type CaptionRevealState = {
+  id: string;
+  sourceText: string;
+  visibleChars: number;
+  displayedText: string;
+  fallbackAt: number;
+  hasStarted: boolean;
+  lastTickAt: number;
+};
+
 function formatTime(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60)
     .toString()
@@ -224,6 +234,10 @@ export default function RolePlayPreviewSessionPage() {
   const finalizedTranscriptKeysRef = useRef<Set<string>>(new Set());
   const pushToTalkEnabledRef = useRef(true);
   const captionScrollRef = useRef<HTMLDivElement | null>(null);
+  const captionRevealStateRef = useRef<CaptionRevealState | null>(null);
+  const aiSpeakingRef = useRef(false);
+  const latestAiCaptionFinalRef = useRef(false);
+  const [displayedAiCaptionText, setDisplayedAiCaptionText] = useState("");
 
   const requiredGoals = learnerGoals.filter((goal) => goal.required);
   const controlsLocked = simulationState === "ending" || simulationState === "finished";
@@ -236,6 +250,10 @@ export default function RolePlayPreviewSessionPage() {
   const isAssignedLearner = Boolean(
     config && sessionUser && canUserTakeRolePlay(sessionUser, config),
   );
+
+  useEffect(() => {
+    aiSpeakingRef.current = aiSpeaking;
+  }, [aiSpeaking]);
 
   useEffect(() => {
     void (async () => {
@@ -798,11 +816,94 @@ export default function RolePlayPreviewSessionPage() {
   }, [normalizedTranscript]);
 
   useEffect(() => {
+    latestAiCaptionFinalRef.current = Boolean(latestAiCaption?.is_final);
+
+    if (!latestAiCaption) {
+      captionRevealStateRef.current = null;
+      setDisplayedAiCaptionText("");
+      return;
+    }
+
+    const now = Date.now();
+    const current = captionRevealStateRef.current;
+    const isNewTurn = !current || current.id !== latestAiCaption.id;
+    const textWasRewritten = Boolean(current && latestAiCaption.text.length < current.visibleChars);
+
+    if (isNewTurn || textWasRewritten) {
+      captionRevealStateRef.current = {
+        id: latestAiCaption.id,
+        sourceText: latestAiCaption.text,
+        visibleChars: 0,
+        displayedText: "",
+        fallbackAt: now + 550,
+        hasStarted: false,
+        lastTickAt: now,
+      };
+      setDisplayedAiCaptionText("");
+      return;
+    }
+
+    current.sourceText = latestAiCaption.text;
+  }, [latestAiCaption]);
+
+  useEffect(() => {
+    if (callStatus !== "In Call" && simulationState !== "in_call") {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      const state = captionRevealStateRef.current;
+      if (!state?.sourceText) {
+        return;
+      }
+
+      const now = Date.now();
+      if (!state.hasStarted) {
+        if (!aiSpeakingRef.current && now < state.fallbackAt) {
+          return;
+        }
+
+        state.hasStarted = true;
+        state.lastTickAt = now;
+      }
+
+      const remainingChars = state.sourceText.length - state.visibleChars;
+      if (remainingChars <= 0) {
+        return;
+      }
+
+      const elapsedMs = Math.max(40, now - state.lastTickAt);
+      state.lastTickAt = now;
+
+      const baseCharsPerSecond = aiSpeakingRef.current
+        ? 20
+        : latestAiCaptionFinalRef.current
+          ? 44
+          : 16;
+      const catchUpMultiplier = remainingChars > 180 ? 1.6 : remainingChars > 90 ? 1.25 : 1;
+      const nextStep = Math.max(
+        1,
+        Math.ceil((baseCharsPerSecond * catchUpMultiplier * elapsedMs) / 1000),
+      );
+
+      state.visibleChars = Math.min(state.sourceText.length, state.visibleChars + nextStep);
+      const nextDisplayedText = state.sourceText.slice(0, state.visibleChars);
+
+      if (nextDisplayedText !== state.displayedText) {
+        state.displayedText = nextDisplayedText;
+        setDisplayedAiCaptionText(nextDisplayedText);
+      }
+    }, 80);
+
+    return () => window.clearInterval(interval);
+  }, [callStatus, simulationState]);
+
+  useEffect(() => {
     const captionContainer = captionScrollRef.current;
     if (!captionContainer) return;
 
     captionContainer.scrollTop = captionContainer.scrollHeight;
-  }, [latestAiCaption?.text]);
+  }, [displayedAiCaptionText]);
 
   if (!config || (!sessionUser && !accessDenied)) {
     return (
@@ -1306,7 +1407,10 @@ export default function RolePlayPreviewSessionPage() {
                     className="mt-3 min-h-0 flex-1 overflow-y-auto pr-2 [scrollbar-width:thin]"
                   >
                     <p className="text-base font-medium leading-7 text-white">
-                      {latestAiCaption?.text ??
+                      {displayedAiCaptionText ||
+                        (latestAiCaption
+                          ? "..."
+                          : null) ||
                         (callStatus === "In Call"
                           ? "Waiting for the AI customer to speak..."
                           : "AI customer captions will appear here once the call starts.")}
