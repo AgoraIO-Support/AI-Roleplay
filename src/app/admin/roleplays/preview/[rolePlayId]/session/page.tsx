@@ -64,11 +64,13 @@ type DataStreamTranscriptMessage = {
 type CaptionRevealState = {
   id: string;
   sourceText: string;
-  visibleChars: number;
+  tokens: string[];
+  visibleTokenCount: number;
   displayedText: string;
   fallbackAt: number;
   hasStarted: boolean;
   lastTickAt: number;
+  carryMs: number;
 };
 
 function formatTime(totalSeconds: number) {
@@ -126,6 +128,10 @@ function scaleVolumeForDisplay(level: number, noiseFloor = 0.22, gain = 1.45) {
   }
 
   return Math.min(1, ((normalized - noiseFloor) / (1 - noiseFloor)) * gain);
+}
+
+function captionTokens(text: string) {
+  return text.match(/\S+\s*/g) ?? [];
 }
 
 function withCustomerPersonaGuard(config: RolePlayConfig) {
@@ -827,23 +833,29 @@ export default function RolePlayPreviewSessionPage() {
     const now = Date.now();
     const current = captionRevealStateRef.current;
     const isNewTurn = !current || current.id !== latestAiCaption.id;
-    const textWasRewritten = Boolean(current && latestAiCaption.text.length < current.visibleChars);
+    const nextTokens = captionTokens(latestAiCaption.text);
+    const textWasRewritten = Boolean(
+      current && nextTokens.length < current.visibleTokenCount,
+    );
 
     if (isNewTurn || textWasRewritten) {
       captionRevealStateRef.current = {
         id: latestAiCaption.id,
         sourceText: latestAiCaption.text,
-        visibleChars: 0,
+        tokens: nextTokens,
+        visibleTokenCount: 0,
         displayedText: "",
         fallbackAt: now + 550,
         hasStarted: false,
         lastTickAt: now,
+        carryMs: 0,
       };
       setDisplayedAiCaptionText("");
       return;
     }
 
     current.sourceText = latestAiCaption.text;
+    current.tokens = nextTokens;
   }, [latestAiCaption]);
 
   useEffect(() => {
@@ -867,33 +879,38 @@ export default function RolePlayPreviewSessionPage() {
         state.lastTickAt = now;
       }
 
-      const remainingChars = state.sourceText.length - state.visibleChars;
-      if (remainingChars <= 0) {
+      const remainingTokens = state.tokens.length - state.visibleTokenCount;
+      if (remainingTokens <= 0) {
         return;
       }
 
       const elapsedMs = Math.max(40, now - state.lastTickAt);
       state.lastTickAt = now;
+      state.carryMs += elapsedMs;
 
-      const baseCharsPerSecond = aiSpeakingRef.current
-        ? 20
+      const wordDelayMs = aiSpeakingRef.current
+        ? 260
         : latestAiCaptionFinalRef.current
-          ? 44
-          : 16;
-      const catchUpMultiplier = remainingChars > 180 ? 1.6 : remainingChars > 90 ? 1.25 : 1;
-      const nextStep = Math.max(
-        1,
-        Math.ceil((baseCharsPerSecond * catchUpMultiplier * elapsedMs) / 1000),
-      );
+          ? 190
+          : 320;
 
-      state.visibleChars = Math.min(state.sourceText.length, state.visibleChars + nextStep);
-      const nextDisplayedText = state.sourceText.slice(0, state.visibleChars);
+      if (state.carryMs < wordDelayMs) {
+        return;
+      }
+
+      const wordsToReveal = Math.max(1, Math.floor(state.carryMs / wordDelayMs));
+      state.carryMs %= wordDelayMs;
+      state.visibleTokenCount = Math.min(
+        state.tokens.length,
+        state.visibleTokenCount + wordsToReveal,
+      );
+      const nextDisplayedText = state.tokens.slice(0, state.visibleTokenCount).join("").trimEnd();
 
       if (nextDisplayedText !== state.displayedText) {
         state.displayedText = nextDisplayedText;
         setDisplayedAiCaptionText(nextDisplayedText);
       }
-    }, 80);
+    }, 90);
 
     return () => window.clearInterval(interval);
   }, [callStatus, simulationState]);
