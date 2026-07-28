@@ -199,7 +199,7 @@ export async function POST(request: Request) {
     defaultRolePlayCharacterPreset.voiceId;
   const ttsSpeed = Math.min(
     2,
-    Math.max(0.5, numberWithDefault(process.env.CONVOAI_TTS_SPEED, 1.3)),
+    Math.max(0.5, numberWithDefault(process.env.CONVOAI_TTS_SPEED, 1)),
   );
 
   const baseUrl = withDefault(
