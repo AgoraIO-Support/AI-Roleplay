@@ -41,6 +41,10 @@ type StartResponse = {
     uid: string;
     token: string;
   };
+  configSummary?: {
+    ttsModel?: string;
+    ttsSpeed?: number;
+  };
 };
 
 type StreamChunkEnvelope = {
@@ -134,6 +138,36 @@ function captionTokens(text: string) {
   return text.match(/\S+\s*/g) ?? [];
 }
 
+function estimateTtsWordDelayMs(model?: string, speed = 1, isFinal = false) {
+  const normalizedModel = model?.toLowerCase() ?? "";
+  const baseWordsPerMinute = normalizedModel.includes("flash")
+    ? 180
+    : normalizedModel.includes("turbo")
+      ? 168
+      : 155;
+  const normalizedSpeed =
+    Number.isFinite(speed) && speed > 0 ? Math.min(2, Math.max(0.5, speed)) : 1;
+  const delay = 60000 / (baseWordsPerMinute * normalizedSpeed);
+
+  return Math.round(Math.min(460, Math.max(isFinal ? 220 : 280, delay)));
+}
+
+function captionWindow(tokens: string[], visibleTokenCount: number) {
+  const maxCaptionWords = 10;
+  const maxCaptionCharacters = 96;
+  let startIndex = Math.max(0, visibleTokenCount - maxCaptionWords);
+  let visibleTokens = tokens.slice(startIndex, visibleTokenCount);
+  let caption = visibleTokens.join("").trim();
+
+  while (caption.length > maxCaptionCharacters && visibleTokens.length > 4) {
+    startIndex += 1;
+    visibleTokens = tokens.slice(startIndex, visibleTokenCount);
+    caption = visibleTokens.join("").trim();
+  }
+
+  return caption;
+}
+
 function withCustomerPersonaGuard(config: RolePlayConfig) {
   return [
     config.generated.system_message,
@@ -206,8 +240,7 @@ export default function RolePlayPreviewSessionPage() {
   const [preCallPreviewAccepted, setPreCallPreviewAccepted] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
-  const [pushToTalkEnabled, setPushToTalkEnabled] = useState(true);
-  const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
+  const [isMicMuted, setIsMicMuted] = useState(true);
   const [aiVolumeLevel, setAiVolumeLevel] = useState(0);
   const [traineeVolumeLevel, setTraineeVolumeLevel] = useState(0);
   const [connectionState, setConnectionState] = useState("DISCONNECTED");
@@ -238,7 +271,7 @@ export default function RolePlayPreviewSessionPage() {
   >(new Map());
   const transcriptItemMapRef = useRef<Map<string, ToolkitTranscriptItem>>(new Map());
   const finalizedTranscriptKeysRef = useRef<Set<string>>(new Set());
-  const pushToTalkEnabledRef = useRef(true);
+  const isMicMutedRef = useRef(true);
   const captionScrollRef = useRef<HTMLDivElement | null>(null);
   const captionRevealStateRef = useRef<CaptionRevealState | null>(null);
   const aiSpeakingRef = useRef(false);
@@ -248,7 +281,7 @@ export default function RolePlayPreviewSessionPage() {
   const requiredGoals = learnerGoals.filter((goal) => goal.required);
   const controlsLocked = simulationState === "ending" || simulationState === "finished";
   const visualAiVolume = Math.min(1, aiVolumeLevel * 2.8);
-  const traineeFillLevel = isPushToTalkActive
+  const traineeFillLevel = !isMicMuted
     ? scaleVolumeForDisplay(traineeVolumeLevel, 0.6, 1.9)
     : 0;
   const aiSpeaking = visualAiVolume > 0.04;
@@ -275,23 +308,6 @@ export default function RolePlayPreviewSessionPage() {
       setSessionUser(payload.user ?? null);
     })();
   }, []);
-
-  useEffect(() => {
-    pushToTalkEnabledRef.current = pushToTalkEnabled;
-    if (!localAudioTrackRef.current) {
-      setIsPushToTalkActive(false);
-      return;
-    }
-
-    if (pushToTalkEnabled) {
-      void localAudioTrackRef.current.setMuted(true).catch(() => undefined);
-      setIsPushToTalkActive(false);
-      return;
-    }
-
-    void localAudioTrackRef.current.setMuted(false).catch(() => undefined);
-    setIsPushToTalkActive(false);
-  }, [pushToTalkEnabled]);
 
   useEffect(() => {
     if (!rolePlayId) return;
@@ -354,7 +370,7 @@ export default function RolePlayPreviewSessionPage() {
 
     const interval = window.setInterval(() => {
       const trackAiVolume = normalizeVolumeLevel(remoteAudioTrackRef.current?.getVolumeLevel() ?? 0);
-      const isLocalMicLive = !pushToTalkEnabledRef.current || isPushToTalkActive;
+      const isLocalMicLive = !isMicMutedRef.current;
       const trackTraineeVolume = isLocalMicLive
         ? normalizeVolumeLevel(localAudioTrackRef.current?.getVolumeLevel() ?? 0)
         : 0;
@@ -371,7 +387,7 @@ export default function RolePlayPreviewSessionPage() {
     }, 80);
 
     return () => window.clearInterval(interval);
-  }, [callStatus, isPushToTalkActive, simulationState]);
+  }, [callStatus, isMicMuted, simulationState]);
 
   function upsertNormalizedTranscript(entry: ToolkitTranscriptItem) {
     const key = `${entry.uid}-${entry.stream_id}-${entry.turn_id}-${entry.metadata?.object ?? "unknown"}`;
@@ -489,7 +505,8 @@ export default function RolePlayPreviewSessionPage() {
     setCallStatus("Connecting");
     setSimulationState("preparing");
     setSessionEnded(false);
-    setIsPushToTalkActive(false);
+    isMicMutedRef.current = true;
+    setIsMicMuted(true);
     setElapsedSeconds(0);
     setNormalizedTranscript([]);
     setTranscriptSessionId(null);
@@ -604,9 +621,7 @@ export default function RolePlayPreviewSessionPage() {
       ]);
 
       localAudioTrackRef.current = microphoneTrack;
-      if (pushToTalkEnabledRef.current) {
-        await microphoneTrack.setMuted(true);
-      }
+      await microphoneTrack.setMuted(isMicMutedRef.current);
       await client.publish([microphoneTrack]);
       setCallStatus("In Call");
       setSimulationState("in_call");
@@ -621,7 +636,8 @@ export default function RolePlayPreviewSessionPage() {
   }
 
   async function cleanupVoiceRolePlay(callEndApi: boolean) {
-    setIsPushToTalkActive(false);
+    isMicMutedRef.current = true;
+    setIsMicMuted(true);
     const cleanupTasks: Promise<unknown>[] = [];
 
     remoteAudioTrackRef.current = null;
@@ -772,21 +788,23 @@ export default function RolePlayPreviewSessionPage() {
     setIsEnding(false);
   }
 
-  async function setPushToTalkActive(active: boolean) {
-    if (!pushToTalkEnabledRef.current || callStatus !== "In Call" || simulationState !== "in_call") {
-      return;
-    }
-    if (isPushToTalkActive === active) {
+  async function toggleMicMuted() {
+    if (callStatus !== "In Call" || simulationState !== "in_call" || controlsLocked) {
       return;
     }
 
-    const wasActive = isPushToTalkActive;
-    setIsPushToTalkActive(active);
-    await localAudioTrackRef.current?.setMuted(!active).catch(() => undefined);
-
-    if (wasActive && !active) {
-      setIsPushToTalkActive(false);
+    const nextMuted = !isMicMutedRef.current;
+    isMicMutedRef.current = nextMuted;
+    setIsMicMuted(nextMuted);
+    if (nextMuted) {
+      traineeVolumeTargetRef.current = 0;
+      setTraineeVolumeLevel(0);
     }
+
+    await localAudioTrackRef.current?.setMuted(nextMuted).catch(() => {
+      isMicMutedRef.current = !nextMuted;
+      setIsMicMuted(!nextMuted);
+    });
   }
 
   useEffect(() => {
@@ -888,11 +906,11 @@ export default function RolePlayPreviewSessionPage() {
       state.lastTickAt = now;
       state.carryMs += elapsedMs;
 
-      const wordDelayMs = aiSpeakingRef.current
-        ? 260
-        : latestAiCaptionFinalRef.current
-          ? 190
-          : 320;
+      const wordDelayMs = estimateTtsWordDelayMs(
+        startResponse?.configSummary?.ttsModel,
+        startResponse?.configSummary?.ttsSpeed,
+        latestAiCaptionFinalRef.current,
+      );
 
       if (state.carryMs < wordDelayMs) {
         return;
@@ -904,7 +922,7 @@ export default function RolePlayPreviewSessionPage() {
         state.tokens.length,
         state.visibleTokenCount + wordsToReveal,
       );
-      const nextDisplayedText = state.tokens.slice(0, state.visibleTokenCount).join("").trimEnd();
+      const nextDisplayedText = captionWindow(state.tokens, state.visibleTokenCount);
 
       if (nextDisplayedText !== state.displayedText) {
         state.displayedText = nextDisplayedText;
@@ -913,7 +931,12 @@ export default function RolePlayPreviewSessionPage() {
     }, 90);
 
     return () => window.clearInterval(interval);
-  }, [callStatus, simulationState]);
+  }, [
+    callStatus,
+    simulationState,
+    startResponse?.configSummary?.ttsModel,
+    startResponse?.configSummary?.ttsSpeed,
+  ]);
 
   useEffect(() => {
     const captionContainer = captionScrollRef.current;
@@ -1318,15 +1341,15 @@ export default function RolePlayPreviewSessionPage() {
           </button>
           <button
             type="button"
-            onClick={() => setPushToTalkEnabled((current) => !current)}
-            disabled={callStatus === "Ended" || controlsLocked}
+            onClick={() => void toggleMicMuted()}
+            disabled={callStatus !== "In Call" || controlsLocked}
             className={`rounded-2xl border px-4 py-2 text-sm font-semibold shadow-soft transition disabled:opacity-50 ${
-              pushToTalkEnabled
-                ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-                : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50"
+              isMicMuted
+                ? "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50"
+                : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
             }`}
           >
-            Push to Talk {pushToTalkEnabled ? "On" : "Off"}
+            Mic {isMicMuted ? "Muted" : "Live"}
           </button>
           <button
             type="button"
@@ -1397,12 +1420,7 @@ export default function RolePlayPreviewSessionPage() {
                   Agent audio: {remoteAudioPublished ? "published" : "waiting"}
                 </span>
                 <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-blue-700">
-                  Mic:{" "}
-                  {pushToTalkEnabled
-                    ? isPushToTalkActive
-                      ? "live"
-                      : "muted until held"
-                    : "open"}
+                  Mic: {isMicMuted ? "muted" : "live"}
                 </span>
               </div>
               {captionsOpen && (
@@ -1435,74 +1453,55 @@ export default function RolePlayPreviewSessionPage() {
                   </div>
                 </div>
               )}
-              {pushToTalkEnabled && (
-                <div className="mx-auto mt-6 max-w-md rounded-3xl border border-blue-100 bg-blue-50/70 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
-                    Push to Talk
-                  </p>
-                  <button
-                    type="button"
-                    disabled={callStatus !== "In Call" || controlsLocked}
-                    onPointerDown={() => void setPushToTalkActive(true)}
-                    onPointerUp={() => void setPushToTalkActive(false)}
-                    onPointerLeave={() => void setPushToTalkActive(false)}
-                    onPointerCancel={() => void setPushToTalkActive(false)}
-                    onKeyDown={(event) => {
-                      if (event.code === "Space" || event.key === "Enter") {
-                        event.preventDefault();
-                        void setPushToTalkActive(true);
-                      }
-                    }}
-                    onKeyUp={(event) => {
-                      if (event.code === "Space" || event.key === "Enter") {
-                        event.preventDefault();
-                        void setPushToTalkActive(false);
-                      }
-                    }}
-                    className={`relative mt-3 w-full overflow-hidden rounded-2xl border px-5 py-5 text-sm font-semibold shadow-lg transition duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${
-                      isPushToTalkActive
-                        ? "border-emerald-300 bg-emerald-50 text-emerald-950 shadow-emerald-500/15"
-                        : "border-blue-200 bg-white text-blue-700 shadow-blue-500/10 hover:bg-blue-50"
-                    }`}
+              <div className="mx-auto mt-6 max-w-md rounded-3xl border border-blue-100 bg-blue-50/70 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
+                  Microphone
+                </p>
+                <button
+                  type="button"
+                  disabled={callStatus !== "In Call" || controlsLocked}
+                  onClick={() => void toggleMicMuted()}
+                  className={`relative mt-3 w-full overflow-hidden rounded-2xl border px-5 py-5 text-sm font-semibold shadow-lg transition duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    isMicMuted
+                      ? "border-blue-200 bg-white text-blue-700 shadow-blue-500/10 hover:bg-blue-50"
+                      : "border-emerald-300 bg-emerald-50 text-emerald-950 shadow-emerald-500/15"
+                  }`}
+                  style={{
+                    boxShadow:
+                      !isMicMuted && traineeSpeaking
+                        ? `0 0 0 ${2 + traineeFillLevel * 5}px rgba(52,211,153,${
+                            0.12 + traineeFillLevel * 0.12
+                          }), 0 16px 34px -24px rgba(15,23,42,0.35)`
+                        : undefined,
+                  }}
+                >
+                  <span
+                    className="absolute inset-x-0 bottom-0 h-full origin-bottom bg-[linear-gradient(180deg,rgba(110,231,183,0.55),rgba(16,185,129,0.86))] transition-transform duration-200 ease-out will-change-transform"
                     style={{
-                      boxShadow:
-                        isPushToTalkActive && traineeSpeaking
-                          ? `0 0 0 ${2 + traineeFillLevel * 5}px rgba(52,211,153,${
-                              0.12 + traineeFillLevel * 0.12
-                            }), 0 16px 34px -24px rgba(15,23,42,0.35)`
-                          : undefined,
+                      transform: `scaleY(${traineeFillLevel})`,
                     }}
-                  >
+                  />
+                  <span className="relative flex items-center justify-center gap-2">
                     <span
-                      className="absolute inset-x-0 bottom-0 h-full origin-bottom bg-[linear-gradient(180deg,rgba(110,231,183,0.55),rgba(16,185,129,0.86))] transition-transform duration-200 ease-out will-change-transform"
-                      style={{
-                        transform: `scaleY(${traineeFillLevel})`,
-                      }}
+                      className={`h-2.5 w-2.5 rounded-full transition-colors duration-200 ${
+                        isMicMuted ? "bg-blue-300" : "bg-emerald-600"
+                      }`}
                     />
-                    <span className="relative flex items-center justify-center gap-2">
-                      <span
-                        className={`h-2.5 w-2.5 rounded-full transition-colors duration-200 ${
-                          isPushToTalkActive ? "bg-emerald-600" : "bg-blue-300"
-                        }`}
-                      />
-                      <span className="drop-shadow-[0_1px_0_rgba(255,255,255,0.45)]">
-                        {isPushToTalkActive ? "Listening... release to mute" : "Hold to Talk"}
-                      </span>
-                      {isPushToTalkActive && (
-                        <span
-                          className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-emerald-800"
-                        >
-                          {traineeSpeaking ? `${Math.round(traineeFillLevel * 100)}%` : "Ready"}
-                        </span>
-                      )}
+                    <span className="drop-shadow-[0_1px_0_rgba(255,255,255,0.45)]">
+                      {isMicMuted ? "Unmute Mic" : "Mute Mic"}
                     </span>
-                  </button>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Hold the button while speaking. Release when your turn is done so background
-                    noise does not interrupt the AI customer.
-                  </p>
-                </div>
-              )}
+                    {!isMicMuted && (
+                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                        {traineeSpeaking ? `${Math.round(traineeFillLevel * 100)}%` : "Live"}
+                      </span>
+                    )}
+                  </span>
+                </button>
+                <p className="mt-3 text-xs leading-5 text-slate-500">
+                  Stay muted while reviewing docs or preparing your response. Unmute when you are
+                  ready to answer the AI customer.
+                </p>
+              </div>
               {errorMessage && (
                 <div className="mx-auto mt-5 max-w-xl rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                   {errorMessage}

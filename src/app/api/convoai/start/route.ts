@@ -86,6 +86,12 @@ function withDefault(value: unknown, fallback: string) {
   return normalized || fallback;
 }
 
+function numberWithDefault(value: unknown, fallback: number) {
+  const normalized =
+    typeof value === "number" ? value : Number(asString(value).trim());
+  return Number.isFinite(normalized) ? normalized : fallback;
+}
+
 function trimTrailingSlash(value: string) {
   return value.replace(/\/+$/, "");
 }
@@ -191,6 +197,10 @@ export async function POST(request: Request) {
     requestedVoiceId ||
     asString(process.env.CONVOAI_TTS_VOICE).trim() ||
     defaultRolePlayCharacterPreset.voiceId;
+  const ttsSpeed = Math.min(
+    2,
+    Math.max(0.5, numberWithDefault(process.env.CONVOAI_TTS_SPEED, 1)),
+  );
 
   const baseUrl = withDefault(
     process.env.CONVOAI_BASE_URL,
@@ -292,7 +302,7 @@ export async function POST(request: Request) {
           model: ttsModel,
           voice_setting: {
             voice_id: ttsVoiceId,
-            speed: 1.0,
+            speed: ttsSpeed,
           },
           audio_setting: {
             sample_rate: 44100,
@@ -376,6 +386,7 @@ export async function POST(request: Request) {
       ttsProvider: `${ttsVendor}:managed`,
       ttsModel,
       ttsVoiceId,
+      ttsSpeed,
       appIdConfigured: Boolean(appId),
       rtcTokenGenerated: Boolean(agentRtcToken),
       tokenVersion: "AccessToken2",
