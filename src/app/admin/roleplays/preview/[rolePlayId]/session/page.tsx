@@ -85,6 +85,18 @@ function formatTime(totalSeconds: number) {
   return `${minutes}:${seconds}`;
 }
 
+function formatTranscriptTime(timestamp: string) {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function parseStreamChunkEnvelope(rawChunk: string): StreamChunkEnvelope | null {
   const first = rawChunk.indexOf("|");
   const second = rawChunk.indexOf("|", first + 1);
@@ -167,6 +179,11 @@ function withCustomerPersonaGuard(config: RolePlayConfig) {
     "If the learner gives generic advice, ask how it applies to the specific Agora scenario or customer use case.",
     "If the learner drifts away from the configured issue, redirect back to the customer's impact and the Agora feature involved.",
     "Do not invent technical facts, API names, product limits, pricing, or behavior not grounded in the scenario.",
+    "CONVERSATION STYLE:",
+    "Keep each reply concise and natural for a live customer call: usually 1-3 short sentences.",
+    "Ask at most one direct follow-up question per turn. Do not stack multiple questions.",
+    "When the learner asks a follow-up, answer it directly first, then ask a short clarification only if needed.",
+    "Avoid long explanations, bullet lists, and coaching language. Make the learner do the problem-solving.",
   ].join("\n\n");
 }
 
@@ -1503,6 +1520,62 @@ export default function RolePlayPreviewSessionPage() {
             </div>
           </div>
 
+          <div className="rounded-3xl border border-blue-100 bg-white p-5 shadow-soft">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+                  Full transcription
+                </p>
+                <h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-950">
+                  Conversation history
+                </h2>
+              </div>
+              <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                {normalizedTranscript.length} turn{normalizedTranscript.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <div className="mt-4 max-h-80 space-y-3 overflow-y-auto pr-1 [scrollbar-width:thin]">
+              {normalizedTranscript.length > 0 ? (
+                normalizedTranscript.map((entry) => {
+                  const isAi = entry.speaker_type === "customer_ai";
+                  return (
+                    <div
+                      key={entry.id}
+                      className={`rounded-2xl border p-3 ${
+                        isAi
+                          ? "border-cyan-100 bg-cyan-50/70"
+                          : "border-slate-200 bg-slate-50"
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p
+                          className={`text-xs font-semibold uppercase tracking-[0.16em] ${
+                            isAi ? "text-cyan-700" : "text-slate-500"
+                          }`}
+                        >
+                          {isAi ? config.character.name : "You"}
+                        </p>
+                        <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-400">
+                          {!entry.is_final && (
+                            <span className="rounded-full bg-white px-2 py-0.5 text-blue-600">
+                              Live
+                            </span>
+                          )}
+                          <span>{formatTranscriptTime(entry.timestamp)}</span>
+                        </div>
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-slate-700">{entry.text}</p>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                  The live transcript will appear here once the learner and AI customer start
+                  speaking.
+                </div>
+              )}
+            </div>
+          </div>
         </section>
 
         {guideOpen && (

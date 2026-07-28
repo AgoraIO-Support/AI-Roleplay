@@ -619,6 +619,7 @@ function buildTranscriptDraftTaskPrompt() {
     "Put learnerMustDo into learnerGoals as observable objectives.",
     "The scenario field is learner-facing. Include only safe customer context and setup.",
     "The scenario field must not include originalCallSummary, learnerMustDo, aiCustomerMustMention, or aiCustomerBehavior. The app stores those as hidden prompt guidance or objectives.",
+    "For aiCustomerBehavior, prefer concise live-call behavior: short replies, one direct follow-up question per turn, no stacked questions, and no coaching language.",
     "Keep all fields anonymized. Preserve useful context, not raw transcript wording.",
   ].join("\n");
 }
