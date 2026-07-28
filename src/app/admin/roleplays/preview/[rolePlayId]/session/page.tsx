@@ -152,22 +152,6 @@ function estimateTtsWordDelayMs(model?: string, speed = 1, isFinal = false) {
   return Math.round(Math.min(460, Math.max(isFinal ? 220 : 280, delay)));
 }
 
-function captionWindow(tokens: string[], visibleTokenCount: number) {
-  const maxCaptionWords = 10;
-  const maxCaptionCharacters = 96;
-  let startIndex = Math.max(0, visibleTokenCount - maxCaptionWords);
-  let visibleTokens = tokens.slice(startIndex, visibleTokenCount);
-  let caption = visibleTokens.join("").trim();
-
-  while (caption.length > maxCaptionCharacters && visibleTokens.length > 4) {
-    startIndex += 1;
-    visibleTokens = tokens.slice(startIndex, visibleTokenCount);
-    caption = visibleTokens.join("").trim();
-  }
-
-  return caption;
-}
-
 function withCustomerPersonaGuard(config: RolePlayConfig) {
   return [
     config.generated.system_message,
@@ -922,7 +906,7 @@ export default function RolePlayPreviewSessionPage() {
         state.tokens.length,
         state.visibleTokenCount + wordsToReveal,
       );
-      const nextDisplayedText = captionWindow(state.tokens, state.visibleTokenCount);
+      const nextDisplayedText = state.tokens.slice(0, state.visibleTokenCount).join("").trimEnd();
 
       if (nextDisplayedText !== state.displayedText) {
         state.displayedText = nextDisplayedText;
