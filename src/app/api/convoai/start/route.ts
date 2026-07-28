@@ -100,6 +100,15 @@ function resolveConvoAiLlmUrl(baseUrl: string) {
   return `${normalized}/chat/completions`;
 }
 
+function resolveConvoAiProxyUrl(request: Request) {
+  const explicitUrl = asString(process.env.CONVOAI_LLM_PROXY_URL).trim();
+  if (explicitUrl) {
+    return explicitUrl;
+  }
+
+  return new URL("/api/llm/chat-completions", request.url).toString();
+}
+
 function buildRtcAccessToken2(params: {
   appId: string;
   appCertificate: string;
@@ -161,7 +170,10 @@ export async function POST(request: Request) {
   const coachLlmConfig = getCoachFeedbackLlmConfig();
   const llmVendor = "openai";
   const llmModel = coachLlmConfig.model;
-  const llmUrl = resolveConvoAiLlmUrl(coachLlmConfig.baseUrl);
+  const llmUrl =
+    coachLlmConfig.wireApi === "responses"
+      ? resolveConvoAiProxyUrl(request)
+      : resolveConvoAiLlmUrl(coachLlmConfig.baseUrl);
   const llmApiKey = coachLlmConfig.apiKey;
   const llmParams = {
     model: llmModel,
@@ -355,6 +367,7 @@ export async function POST(request: Request) {
       llmProvider: `${llmVendor}:byok`,
       llmCredentialMode: "byok",
       llmSource: `coach-feedback:${coachLlmConfig.provider}`,
+      llmProxyEnabled: coachLlmConfig.wireApi === "responses",
       llmModel,
       llmUrl,
       asrProvider: `${asrVendor}:managed`,
