@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { sessionCookieName } from "@/src/lib/auth/constants";
 
 const publicPaths = ["/login"];
-const publicApiPrefixes = ["/api/auth"];
+const publicApiPrefixes = ["/api/auth", "/api/llm"];
 
 function isPublicPath(pathname: string) {
   return publicPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
