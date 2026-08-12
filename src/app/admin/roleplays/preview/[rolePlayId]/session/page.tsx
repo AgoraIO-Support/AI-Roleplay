@@ -248,7 +248,7 @@ export default function RolePlayPreviewSessionPage() {
   const [sessionUser, setSessionUser] = useState<AuthSessionUser | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
   const [guideOpen, setGuideOpen] = useState(true);
-  const [captionsOpen, setCaptionsOpen] = useState(true);
+  const [captionsOpen, setCaptionsOpen] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [sessionEnded, setSessionEnded] = useState(false);
   const [callStatus, setCallStatus] = useState<CallStatus>("Preparing");
@@ -1373,11 +1373,11 @@ export default function RolePlayPreviewSessionPage() {
       </header>
 
       <main
-        className={`mx-auto grid min-h-[calc(100vh-73px)] max-w-7xl grid-cols-1 items-start gap-6 p-6 lg:h-[calc(100vh-73px)] lg:overflow-hidden ${
+        className={`mx-auto grid min-h-[calc(100vh-73px)] max-w-7xl grid-cols-1 items-start gap-6 p-6 ${
           guideOpen ? "lg:grid-cols-[minmax(0,1fr)_380px]" : "lg:grid-cols-1"
         }`}
       >
-        <section className="flex min-h-[calc(100vh-121px)] flex-col gap-5 pr-1 lg:h-[calc(100vh-121px)] lg:min-h-0 lg:overflow-y-auto">
+        <section className="flex min-h-[calc(100vh-121px)] flex-col gap-5 pr-1">
           <div className="relative grid min-h-[560px] flex-1 place-items-center overflow-hidden rounded-[2rem] border border-blue-100 bg-white shadow-soft">
             <div className="grid place-items-center p-8 pb-44 text-center">
               <div className="relative mx-auto h-44 w-44">
@@ -1444,7 +1444,11 @@ export default function RolePlayPreviewSessionPage() {
                 </p>
               </div>
             )}
-            <div className="pointer-events-none absolute inset-x-4 bottom-5 z-40 flex flex-col items-center gap-3">
+            <div
+              className={`pointer-events-none absolute inset-x-4 z-40 flex flex-col items-center gap-3 ${
+                captionsOpen ? "bottom-5" : "bottom-7"
+              }`}
+            >
               {errorMessage && (
                 <div className="pointer-events-auto max-w-xl rounded-2xl border border-amber-200 bg-amber-50/95 px-4 py-2 text-sm text-amber-800 shadow-soft backdrop-blur">
                   {errorMessage}
@@ -1512,7 +1516,7 @@ export default function RolePlayPreviewSessionPage() {
                 {normalizedTranscript.length} turn{normalizedTranscript.length === 1 ? "" : "s"}
               </span>
             </div>
-            <div className="mt-4 max-h-80 space-y-3 overflow-y-auto pr-1 [scrollbar-width:thin]">
+            <div className="mt-4 space-y-3">
               {normalizedTranscript.length > 0 ? (
                 normalizedTranscript.map((entry) => {
                   const isAi = entry.speaker_type === "customer_ai";
@@ -1557,7 +1561,7 @@ export default function RolePlayPreviewSessionPage() {
         </section>
 
         {guideOpen && (
-          <aside className="max-h-[calc(100vh-121px)] w-full overflow-y-auto rounded-3xl border border-blue-100 bg-white p-5 shadow-soft lg:w-96">
+          <aside className="w-full rounded-3xl border border-blue-100 bg-white p-5 shadow-soft lg:w-96">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-semibold text-slate-950">Role play guide</h2>
               <button
