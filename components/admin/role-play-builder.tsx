@@ -155,6 +155,7 @@ export function RolePlayBuilder({
   const [isLoadingPreviewConfig, setIsLoadingPreviewConfig] = useState(false);
   const [isLoadingExistingRolePlay, setIsLoadingExistingRolePlay] = useState(Boolean(rolePlayId));
   const [currentUser, setCurrentUser] = useState<AuthSessionUser | null>(null);
+  const canViewSystemMessage = currentUser?.role === "root_admin";
   const [editAccessDenied, setEditAccessDenied] = useState(false);
   const [currentRolePlayId, setCurrentRolePlayId] = useState<string | null>(rolePlayId ?? null);
   const [currentStatus, setCurrentStatus] = useState<RolePlayStatus>("draft");
@@ -1365,19 +1366,21 @@ export function RolePlayBuilder({
                 </div>
               </dl>
             </div>
-            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 shadow-soft">
-              <div className="border-b border-white/10 px-5 py-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">
-                  System Message Preview
-                </p>
-                <p className="mt-2 text-sm text-slate-400">
-                  This is the generated roleplay instruction sent to the AI customer.
-                </p>
+            {canViewSystemMessage && (
+              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 shadow-soft">
+                <div className="border-b border-white/10 px-5 py-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">
+                    System Message Preview
+                  </p>
+                  <p className="mt-2 text-sm text-slate-400">
+                    This is the generated roleplay instruction sent to the AI customer.
+                  </p>
+                </div>
+                <pre className="max-h-[420px] overflow-y-auto whitespace-pre-wrap p-5 text-xs leading-5 text-slate-300">
+                  {generated.system_message}
+                </pre>
               </div>
-              <pre className="max-h-[420px] overflow-y-auto whitespace-pre-wrap p-5 text-xs leading-5 text-slate-300">
-                {generated.system_message}
-              </pre>
-            </div>
+            )}
           </aside>
         </main>
       </div>
