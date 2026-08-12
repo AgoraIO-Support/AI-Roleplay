@@ -164,6 +164,21 @@ function estimateTtsWordDelayMs(model?: string, speed = 1, isFinal = false) {
   return Math.round(Math.min(460, Math.max(isFinal ? 220 : 280, delay)));
 }
 
+function captionSnippet(text: string) {
+  const maxWords = 16;
+  const maxCharacters = 140;
+  const tokens = captionTokens(text);
+  let visibleTokens = tokens.slice(Math.max(0, tokens.length - maxWords));
+  let caption = visibleTokens.join("").trim();
+
+  while (caption.length > maxCharacters && visibleTokens.length > 6) {
+    visibleTokens = visibleTokens.slice(1);
+    caption = visibleTokens.join("").trim();
+  }
+
+  return caption;
+}
+
 function withCustomerPersonaGuard(config: RolePlayConfig) {
   return [
     config.generated.system_message,
@@ -273,7 +288,6 @@ export default function RolePlayPreviewSessionPage() {
   const transcriptItemMapRef = useRef<Map<string, ToolkitTranscriptItem>>(new Map());
   const finalizedTranscriptKeysRef = useRef<Set<string>>(new Set());
   const isMicMutedRef = useRef(true);
-  const captionScrollRef = useRef<HTMLDivElement | null>(null);
   const captionRevealStateRef = useRef<CaptionRevealState | null>(null);
   const aiSpeakingRef = useRef(false);
   const latestAiCaptionFinalRef = useRef(false);
@@ -923,7 +937,8 @@ export default function RolePlayPreviewSessionPage() {
         state.tokens.length,
         state.visibleTokenCount + wordsToReveal,
       );
-      const nextDisplayedText = state.tokens.slice(0, state.visibleTokenCount).join("").trimEnd();
+      const revealedText = state.tokens.slice(0, state.visibleTokenCount).join("").trimEnd();
+      const nextDisplayedText = captionSnippet(revealedText);
 
       if (nextDisplayedText !== state.displayedText) {
         state.displayedText = nextDisplayedText;
@@ -938,13 +953,6 @@ export default function RolePlayPreviewSessionPage() {
     startResponse?.configSummary?.ttsModel,
     startResponse?.configSummary?.ttsSpeed,
   ]);
-
-  useEffect(() => {
-    const captionContainer = captionScrollRef.current;
-    if (!captionContainer) return;
-
-    captionContainer.scrollTop = captionContainer.scrollHeight;
-  }, [displayedAiCaptionText]);
 
   if (!config || (!sessionUser && !accessDenied)) {
     return (
@@ -1370,8 +1378,8 @@ export default function RolePlayPreviewSessionPage() {
         }`}
       >
         <section className="flex min-h-[calc(100vh-121px)] flex-col gap-5 pr-1 lg:h-[calc(100vh-121px)] lg:min-h-0 lg:overflow-y-auto">
-          <div className="grid min-h-[560px] flex-1 place-items-center overflow-hidden rounded-[2rem] border border-blue-100 bg-white shadow-soft">
-            <div className="grid place-items-center p-8 text-center">
+          <div className="relative grid min-h-[560px] flex-1 place-items-center overflow-hidden rounded-[2rem] border border-blue-100 bg-white shadow-soft">
+            <div className="grid place-items-center p-8 pb-44 text-center">
               <div className="relative mx-auto h-44 w-44">
                 <div
                   className={`absolute inset-0 rounded-[2.75rem] border-[3px] transition-all duration-300 ${
@@ -1424,98 +1432,68 @@ export default function RolePlayPreviewSessionPage() {
                   Mic: {isMicMuted ? "muted" : "live"}
                 </span>
               </div>
-              {captionsOpen && (
-                <div className="mx-auto mt-6 flex h-[156px] w-full max-w-2xl flex-col rounded-[1.75rem] border border-slate-200 bg-slate-950 px-5 py-4 text-left shadow-[0_24px_60px_-36px_rgba(15,23,42,0.7)] sm:h-[176px]">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">
-                      {config.character.name}
-                    </p>
-                    <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-slate-300">
-                      {latestAiCaption
-                        ? latestAiCaption.is_final
-                          ? "AI caption"
-                          : "Streaming"
-                        : "Waiting"}
-                    </span>
-                  </div>
-                  <div
-                    ref={captionScrollRef}
-                    className="mt-3 min-h-0 flex-1 overflow-y-auto pr-2 [scrollbar-width:thin]"
-                  >
-                    <p className="text-base font-medium leading-7 text-white">
-                      {displayedAiCaptionText ||
-                        (latestAiCaption
-                          ? "..."
-                          : null) ||
-                        (callStatus === "In Call"
-                          ? "Waiting for the AI customer to speak..."
-                          : "AI customer captions will appear here once the call starts.")}
-                    </p>
-                  </div>
-                </div>
-              )}
-              <div className="mx-auto mt-6 max-w-md rounded-3xl border border-blue-100 bg-blue-50/70 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
-                  Microphone
-                </p>
-                <button
-                  type="button"
-                  disabled={callStatus !== "In Call" || controlsLocked}
-                  onClick={() => void toggleMicMuted()}
-                  className={`relative mt-3 w-full overflow-hidden rounded-2xl border px-5 py-5 text-sm font-semibold shadow-lg transition duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${
-                    isMicMuted
-                      ? "border-blue-200 bg-white text-blue-700 shadow-blue-500/10 hover:bg-blue-50"
-                      : "border-emerald-300 bg-emerald-50 text-emerald-950 shadow-emerald-500/15"
-                  }`}
-                  style={{
-                    boxShadow:
-                      !isMicMuted && traineeSpeaking
-                        ? `0 0 0 ${2 + traineeFillLevel * 5}px rgba(52,211,153,${
-                            0.12 + traineeFillLevel * 0.12
-                          }), 0 16px 34px -24px rgba(15,23,42,0.35)`
-                        : undefined,
-                  }}
-                >
-                  <span
-                    className="absolute inset-x-0 bottom-0 h-full origin-bottom bg-[linear-gradient(180deg,rgba(110,231,183,0.55),rgba(16,185,129,0.86))] transition-transform duration-200 ease-out will-change-transform"
-                    style={{
-                      transform: `scaleY(${traineeFillLevel})`,
-                    }}
-                  />
-                  <span className="relative flex items-center justify-center gap-2">
-                    <span
-                      className={`h-2.5 w-2.5 rounded-full transition-colors duration-200 ${
-                        isMicMuted ? "bg-blue-300" : "bg-emerald-600"
-                      }`}
-                    />
-                    <span className="drop-shadow-[0_1px_0_rgba(255,255,255,0.45)]">
-                      {isMicMuted ? "Unmute Mic" : "Mute Mic"}
-                    </span>
-                    {!isMicMuted && (
-                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
-                        {traineeSpeaking ? `${Math.round(traineeFillLevel * 100)}%` : "Live"}
-                      </span>
-                    )}
-                  </span>
-                </button>
-                <p className="mt-3 text-xs leading-5 text-slate-500">
-                  Stay muted while reviewing docs or preparing your response. Unmute when you are
-                  ready to answer the AI customer.
+            </div>
+            {captionsOpen && (
+              <div className="pointer-events-none absolute bottom-28 left-1/2 z-30 w-[min(78%,42rem)] -translate-x-1/2 text-center">
+                <p className="inline-block max-w-full overflow-hidden rounded-xl bg-black/75 px-3.5 py-2 text-center text-sm font-medium leading-6 text-white shadow-[0_16px_42px_-22px_rgba(15,23,42,0.8)] backdrop-blur-md [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] sm:text-base">
+                  {displayedAiCaptionText ||
+                    (latestAiCaption ? "..." : null) ||
+                    (callStatus === "In Call"
+                      ? "Waiting for the AI customer to speak..."
+                      : "AI customer captions will appear here once the call starts.")}
                 </p>
               </div>
+            )}
+            <div className="pointer-events-none absolute inset-x-4 bottom-5 z-40 flex flex-col items-center gap-3">
               {errorMessage && (
-                <div className="mx-auto mt-5 max-w-xl rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <div className="pointer-events-auto max-w-xl rounded-2xl border border-amber-200 bg-amber-50/95 px-4 py-2 text-sm text-amber-800 shadow-soft backdrop-blur">
                   {errorMessage}
                 </div>
               )}
-              {callStatus !== "In Call" && !isStarting && !sessionEnded && (
+              {callStatus !== "In Call" && !isStarting && !sessionEnded ? (
                 <button
                   type="button"
                   onClick={() => startVoiceRolePlay(config)}
-                  className="mt-5 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700"
+                  className="pointer-events-auto rounded-full bg-primary px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700"
                 >
                   Start Voice Role Play
                 </button>
+              ) : (
+                <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-white/70 bg-white/90 p-2 shadow-[0_18px_52px_-28px_rgba(15,23,42,0.75)] backdrop-blur-xl">
+                  <button
+                    type="button"
+                    disabled={callStatus !== "In Call" || controlsLocked}
+                    onClick={() => void toggleMicMuted()}
+                    className={`relative min-w-36 overflow-hidden rounded-full border px-5 py-3 text-sm font-semibold transition duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${
+                      isMicMuted
+                        ? "border-blue-200 bg-white text-blue-700 hover:bg-blue-50"
+                        : "border-emerald-300 bg-emerald-50 text-emerald-950"
+                    }`}
+                    style={{
+                      boxShadow:
+                        !isMicMuted && traineeSpeaking
+                          ? `0 0 0 ${2 + traineeFillLevel * 5}px rgba(52,211,153,${
+                              0.12 + traineeFillLevel * 0.12
+                            })`
+                          : undefined,
+                    }}
+                  >
+                    <span
+                      className="absolute inset-x-0 bottom-0 h-full origin-bottom bg-[linear-gradient(180deg,rgba(110,231,183,0.4),rgba(16,185,129,0.7))] transition-transform duration-200 ease-out will-change-transform"
+                      style={{
+                        transform: `scaleY(${traineeFillLevel})`,
+                      }}
+                    />
+                    <span className="relative flex items-center justify-center gap-2">
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full transition-colors duration-200 ${
+                          isMicMuted ? "bg-blue-300" : "bg-emerald-600"
+                        }`}
+                      />
+                      {isMicMuted ? "Unmute Mic" : "Mute Mic"}
+                    </span>
+                  </button>
+                </div>
               )}
             </div>
           </div>
