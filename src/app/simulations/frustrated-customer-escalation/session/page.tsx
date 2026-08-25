@@ -1190,9 +1190,8 @@ export default function FrustratedCustomerEscalationSessionPage() {
               Frustrated Customer Escalation Session
             </h1>
             <p className="max-w-3xl text-sm leading-6 text-slate-300">
-              This sample keeps all secrets on the server, sends the session inputs to
-              `/api/convoai/start`, joins the browser into the RTC channel as the engineer, and
-              still uses mock AI speaking animation for now.
+              This session keeps all secrets on the server, sends the session inputs to
+              `/api/convoai/start`, and joins the browser into the RTC channel as the engineer.
             </p>
           </div>
 
@@ -1381,7 +1380,7 @@ export default function FrustratedCustomerEscalationSessionPage() {
                 <p className="text-xs uppercase tracking-[0.26em] text-slate-500">AI Customer</p>
                 <h2 className="mt-3 text-2xl font-semibold text-white">Escalated Enterprise Caller</h2>
                 <p className="mt-2 text-sm text-slate-400">
-                  Mock voice presence with animated orb and call state controls
+                  Voice presence with animated orb and call state controls
                 </p>
               </div>
 

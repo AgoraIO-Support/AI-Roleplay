@@ -136,3 +136,36 @@ export async function recordServerRolePlayAttemptCompletion(
     lastCompletedAt: attempt.lastCompletedAt?.toISOString(),
   }, { maxAttempts, roleplay });
 }
+
+export async function resetServerRolePlayAttempt(
+  userId: string,
+  rolePlayId: string,
+  roleplay?: RolePlayConfig,
+): Promise<RolePlayAttemptStatus> {
+  const maxAttempts = effectiveMaxAttempts(userId, roleplay);
+
+  if (!isDatabaseConfigured()) {
+    return toAttemptStatus({ completedAttempts: 0 }, { maxAttempts, roleplay });
+  }
+
+  await prisma.rolePlayAttempt.upsert({
+    where: {
+      userId_rolePlayId: {
+        userId,
+        rolePlayId,
+      },
+    },
+    create: {
+      userId,
+      rolePlayId,
+      completedAttempts: 0,
+      lastCompletedAt: null,
+    },
+    update: {
+      completedAttempts: 0,
+      lastCompletedAt: null,
+    },
+  });
+
+  return toAttemptStatus({ completedAttempts: 0 }, { maxAttempts, roleplay });
+}

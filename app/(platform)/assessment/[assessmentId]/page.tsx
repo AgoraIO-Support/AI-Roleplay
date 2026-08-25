@@ -1,11 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { groupTranscriptTurns } from "@/src/lib/assessments/transcriptTurns";
 import type { CoachTurnFeedback, SavedFinalAssessment } from "@/src/lib/assessments/types";
+import type { AuthSessionUser } from "@/src/lib/auth/session";
+import { canUserManageRolePlay } from "@/src/lib/roleplays/access";
+import type { RolePlayConfig } from "@/src/lib/roleplays/types";
 
 export default function FinalAssessmentDetailPage() {
   const params = useParams<{ assessmentId: string }>();
@@ -18,6 +20,7 @@ export default function FinalAssessmentDetailPage() {
   >({});
   const [coachErrorByTurnId, setCoachErrorByTurnId] = useState<Record<string, string>>({});
   const [coachLoadingTurnId, setCoachLoadingTurnId] = useState<string | null>(null);
+  const [canDownloadTranscript, setCanDownloadTranscript] = useState(false);
 
   const transcriptTurns = useMemo(
     () => (assessment ? groupTranscriptTurns(assessment.transcript) : []),
@@ -31,6 +34,10 @@ export default function FinalAssessmentDetailPage() {
       return;
     }
 
+    setCanDownloadTranscript(false);
+    setErrorMessage(null);
+    setLoading(true);
+
     void (async () => {
       try {
         const response = await fetch(`/api/assessments/${assessmentId}`, {
@@ -41,7 +48,9 @@ export default function FinalAssessmentDetailPage() {
           throw new Error(`Unable to load final assessment. HTTP ${response.status}.`);
         }
 
-        setAssessment((await response.json()) as SavedFinalAssessment);
+        const nextAssessment = (await response.json()) as SavedFinalAssessment;
+        setAssessment(nextAssessment);
+        setCanDownloadTranscript(await canCurrentUserDownloadTranscript(nextAssessment));
       } catch (error) {
         setErrorMessage(
           error instanceof Error ? error.message : "Unable to load final assessment.",
@@ -51,6 +60,34 @@ export default function FinalAssessmentDetailPage() {
       }
     })();
   }, [assessmentId]);
+
+  async function canCurrentUserDownloadTranscript(nextAssessment: SavedFinalAssessment) {
+    const sessionResponse = await fetch("/api/auth/session", { cache: "no-store" });
+    const sessionPayload = sessionResponse.ok
+      ? ((await sessionResponse.json()) as { user?: AuthSessionUser })
+      : {};
+    const sessionUser = sessionPayload.user ?? null;
+
+    if (!sessionUser) {
+      return false;
+    }
+
+    if (sessionUser.role === "root_admin") {
+      return true;
+    }
+
+    const roleplayResponse = await fetch(`/api/roleplays/${nextAssessment.scenarioId}`, {
+      cache: "no-store",
+    });
+    const roleplayPayload = roleplayResponse.ok
+      ? ((await roleplayResponse.json()) as { roleplay?: RolePlayConfig })
+      : {};
+
+    return Boolean(
+      roleplayPayload.roleplay &&
+        canUserManageRolePlay(sessionUser, roleplayPayload.roleplay),
+    );
+  }
 
   async function loadCoachFeedback(turnId: string) {
     if (!assessment || coachFeedbackByTurnId[turnId] || coachLoadingTurnId) {
@@ -232,9 +269,14 @@ export default function FinalAssessmentDetailPage() {
       <section className="rounded-3xl border border-blue-100 bg-white p-6 shadow-soft">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold text-slate-950">Transcript Review</h2>
-          <Link href="/assessment" className="text-sm font-semibold text-primary hover:text-blue-700">
-            Back to assessment results
-          </Link>
+          {canDownloadTranscript && (
+            <a
+              href={`/api/assessments/${assessment.id}/transcript`}
+              className="text-sm font-semibold text-primary hover:text-blue-700"
+            >
+              Download Transcript
+            </a>
+          )}
         </div>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
           Consecutive transcript fragments are grouped into conversation turns, so coach feedback

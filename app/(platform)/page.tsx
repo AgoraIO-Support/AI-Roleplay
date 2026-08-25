@@ -1,6 +1,5 @@
-import { AlphaDashboard } from "@/components/dashboard/alpha-dashboard";
+import { Dashboard } from "@/components/dashboard/dashboard";
 
 export default function DashboardPage() {
-  return <AlphaDashboard />;
+  return <Dashboard />;
 }
-

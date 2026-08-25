@@ -100,11 +100,11 @@ export async function fetchRolePlayConfig(rolePlayId: string) {
   });
 
   if (!response.ok) {
-    return getStoredRolePlayConfig(rolePlayId);
+    return null;
   }
 
   const payload = (await response.json()) as { roleplay?: RolePlayConfig };
-  return payload.roleplay ?? getStoredRolePlayConfig(rolePlayId);
+  return payload.roleplay ?? null;
 }
 
 export async function fetchRolePlayConfigs() {
@@ -113,11 +113,11 @@ export async function fetchRolePlayConfigs() {
   });
 
   if (!response.ok) {
-    return listStoredRolePlayConfigs();
+    return [];
   }
 
   const payload = (await response.json()) as { roleplays?: RolePlayConfig[] };
-  return Array.isArray(payload.roleplays) ? payload.roleplays : listStoredRolePlayConfigs();
+  return Array.isArray(payload.roleplays) ? payload.roleplays : [];
 }
 
 export async function persistRolePlayConfig(config: RolePlayConfig) {

@@ -560,7 +560,7 @@ function LearnerDashboard({ data }: { data: LearnerDashboardData }) {
   );
 }
 
-export function AlphaDashboard() {
+export function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);

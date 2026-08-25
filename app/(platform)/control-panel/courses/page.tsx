@@ -1,10 +1,10 @@
-import { MockRoleGuard } from "@/components/auth/mock-role-guard";
+import { RoleGuard } from "@/components/auth/role-guard";
 import { ControlPanel } from "@/components/admin/control-panel";
 
 export default function ControlPanelCoursesPage() {
   return (
-    <MockRoleGuard allowedRoles={["root_admin"]}>
+    <RoleGuard allowedRoles={["root_admin"]}>
       <ControlPanel section="courses" />
-    </MockRoleGuard>
+    </RoleGuard>
   );
 }

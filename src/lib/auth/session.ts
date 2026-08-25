@@ -4,13 +4,13 @@ import { cookies } from "next/headers";
 
 import { findAuthUserById } from "@/src/lib/auth/userStore";
 import { sessionCookieName } from "@/src/lib/auth/constants";
-import type { MockRole } from "@/lib/types";
+import type { AppRole } from "@/lib/types";
 
 export type AuthSessionUser = {
   id: string;
   email: string;
   name: string;
-  role: MockRole;
+  role: AppRole;
 };
 
 type SessionPayload = {
@@ -22,7 +22,7 @@ const sessionMaxAgeSeconds = 60 * 60 * 8;
 
 function sessionSecret() {
   // TODO: Require AUTH_SESSION_SECRET in production deployment configuration.
-  return process.env.AUTH_SESSION_SECRET || "cse-alpha-session-dev-secret";
+  return process.env.AUTH_SESSION_SECRET || "cse-auth-session-dev-secret";
 }
 
 function base64UrlEncode(value: string) {

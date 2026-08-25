@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getAuthSession } from "@/src/lib/auth/session";
 import { createAuthUser, listAuthUsers } from "@/src/lib/auth/userStore";
-import type { MockRole } from "@/lib/types";
+import type { AppRole } from "@/lib/types";
 
 type CreateUserBody = {
   email?: unknown;
@@ -20,7 +20,7 @@ function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function asRole(value: unknown): MockRole | null {
+function asRole(value: unknown): AppRole | null {
   return value === "root_admin" || value === "course_admin" || value === "trainee"
     ? value
     : null;

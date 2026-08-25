@@ -1,10 +1,10 @@
 import { ActivityLogPanel } from "@/components/admin/activity-log-panel";
-import { MockRoleGuard } from "@/components/auth/mock-role-guard";
+import { RoleGuard } from "@/components/auth/role-guard";
 
 export default function ControlPanelActivityPage() {
   return (
-    <MockRoleGuard allowedRoles={["root_admin"]}>
+    <RoleGuard allowedRoles={["root_admin"]}>
       <ActivityLogPanel />
-    </MockRoleGuard>
+    </RoleGuard>
   );
 }

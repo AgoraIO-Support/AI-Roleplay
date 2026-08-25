@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { navigationItems } from "@/lib/mock-data";
-import { canAccessNavItem } from "@/lib/mock-auth";
+import { navigationItems } from "@/lib/navigation";
+import { canAccessNavItem } from "@/lib/authz";
 import { cn } from "@/lib/utils";
-import type { MockRole } from "@/lib/types";
+import type { AppRole } from "@/lib/types";
 
-export function MobileNav({ role }: { role: MockRole }) {
+export function MobileNav({ role }: { role: AppRole }) {
   const pathname = usePathname();
   const visibleNavigationItems = navigationItems.filter((item) => canAccessNavItem(role, item));
   const visibleLinks = visibleNavigationItems.flatMap((item) => {

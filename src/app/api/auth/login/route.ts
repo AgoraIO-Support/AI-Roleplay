@@ -15,7 +15,17 @@ function asString(value: unknown) {
 
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as LoginBody;
-  const user = await findAuthUserByCredentials(asString(body.email), asString(body.password));
+  let user = null;
+
+  try {
+    user = await findAuthUserByCredentials(asString(body.email), asString(body.password));
+  } catch (error) {
+    console.error("Login user lookup failed", error);
+    return NextResponse.json(
+      { error: "User database is not configured or is temporarily unavailable." },
+      { status: 503 },
+    );
+  }
 
   if (!user) {
     return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });

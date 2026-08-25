@@ -7,7 +7,10 @@ import type { SavedFinalAssessment } from "@/src/lib/assessments/types";
 import type { AuthSessionUser } from "@/src/lib/auth/session";
 import type { SafeAuthUser } from "@/src/lib/auth/userStore";
 import { canUserManageRolePlay } from "@/src/lib/roleplays/access";
-import { maxTraineeRolePlayAttempts } from "@/src/lib/roleplays/attempts";
+import {
+  maxTraineeRolePlayAttempts,
+  type RolePlayAttemptStatus,
+} from "@/src/lib/roleplays/attempts";
 import {
   attemptNumberForAssessment,
   learnerName,
@@ -57,6 +60,9 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
     deadlineTimezone: "UTC",
   });
   const [attemptOverrideDrafts, setAttemptOverrideDrafts] = useState<Record<string, number>>({});
+  const [attemptStatuses, setAttemptStatuses] = useState<Record<string, RolePlayAttemptStatus>>({});
+  const [attemptOverrideSearchText, setAttemptOverrideSearchText] = useState("");
+  const [attemptOverrideSearchQuery, setAttemptOverrideSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
@@ -102,8 +108,42 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
 
     if (usersResponse.ok) {
       const payload = (await usersResponse.json()) as { users?: SafeAuthUser[] };
-      setUsers(Array.isArray(payload.users) ? payload.users : []);
+      const nextUsers = Array.isArray(payload.users) ? payload.users : [];
+      setUsers(nextUsers);
+      await loadAttemptStatuses(config, nextUsers);
     }
+  }
+
+  async function loadAttemptStatuses(config: RolePlayConfig, nextUsers: SafeAuthUser[]) {
+    const assignedIds = config.settings.assignedTraineeIds ?? [];
+    const assignedLearners = nextUsers.filter((candidate) => assignedIds.includes(candidate.id));
+
+    const entries = await Promise.all(
+      assignedLearners.map(async (learner) => {
+        try {
+          const response = await fetch(
+            `/api/roleplays/${rolePlayId}/attempts?userId=${encodeURIComponent(learner.id)}`,
+            { cache: "no-store" },
+          );
+
+          if (!response.ok) {
+            return null;
+          }
+
+          const payload = (await response.json()) as {
+            attemptStatus?: RolePlayAttemptStatus | null;
+          };
+          return payload.attemptStatus ? ([learner.id, payload.attemptStatus] as const) : null;
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    const nextStatuses = entries.filter(
+      (entry): entry is readonly [string, RolePlayAttemptStatus] => Boolean(entry),
+    );
+    setAttemptStatuses(Object.fromEntries(nextStatuses));
   }
 
   useEffect(() => {
@@ -123,6 +163,18 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
     const assignedIds = roleplay?.settings.assignedTraineeIds ?? [];
     return users.filter((candidate) => assignedIds.includes(candidate.id));
   }, [roleplay, users]);
+
+  const filteredAssignedUsers = useMemo(() => {
+    const query = attemptOverrideSearchQuery.trim().toLowerCase();
+
+    if (!query) {
+      return assignedUsers;
+    }
+
+    return assignedUsers.filter((candidate) =>
+      [candidate.name, candidate.email].join(" ").toLowerCase().includes(query),
+    );
+  }, [assignedUsers, attemptOverrideSearchQuery]);
 
   async function saveRoleplaySettings(settings: Partial<RolePlayConfig["settings"]>, successMessage: string) {
     if (!roleplay) return;
@@ -182,6 +234,52 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
       { attemptOverrides: nextOverrides },
       "Learner attempt allowance updated.",
     );
+  }
+
+  async function resetAttemptsUsed(userId: string) {
+    if (!roleplay) return;
+
+    const learner = users.find((candidate) => candidate.id === userId);
+    const learnerLabel = learner?.name ?? learner?.email ?? "this learner";
+    if (
+      !window.confirm(
+        `Reset attempts used for ${learnerLabel}? This will not delete assessment results or transcripts.`,
+      )
+    ) {
+      return;
+    }
+
+    setIsSaving(true);
+    setMessage(null);
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch(
+        `/api/roleplays/${rolePlayId}/attempts?userId=${encodeURIComponent(userId)}`,
+        { method: "DELETE" },
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        attemptStatus?: RolePlayAttemptStatus;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? `Unable to reset attempts. HTTP ${response.status}.`);
+      }
+
+      if (payload.attemptStatus) {
+        setAttemptStatuses((current) => ({
+          ...current,
+          [userId]: payload.attemptStatus as RolePlayAttemptStatus,
+        }));
+      }
+
+      setMessage(`Attempts used reset for ${learnerLabel}.`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Unable to reset attempts used.");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   if (isLoading) {
@@ -277,20 +375,62 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
             No assigned learners yet. Add learners in Edit Course before setting per-learner attempt overrides.
           </div>
         ) : (
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {assignedUsers.map((learner) => {
+          <>
+            <div className="mt-4 flex flex-col gap-2 rounded-2xl bg-white/70 p-3 sm:flex-row">
+              <input
+                value={attemptOverrideSearchText}
+                onChange={(event) => setAttemptOverrideSearchText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    setAttemptOverrideSearchQuery(attemptOverrideSearchText);
+                  }
+                }}
+                placeholder="Search learner name or email"
+                className="min-w-0 flex-1 rounded-xl border border-amber-100 bg-white px-3 py-2 text-sm outline-none focus:border-amber-300"
+              />
+              <button
+                type="button"
+                onClick={() => setAttemptOverrideSearchQuery(attemptOverrideSearchText)}
+                className="rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-white transition hover:bg-amber-600"
+              >
+                Search
+              </button>
+              {attemptOverrideSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAttemptOverrideSearchText("");
+                    setAttemptOverrideSearchQuery("");
+                  }}
+                  className="rounded-xl border border-amber-200 bg-white px-4 py-2 text-xs font-bold text-amber-700 transition hover:bg-amber-50"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            {filteredAssignedUsers.length === 0 ? (
+              <div className="mt-4 rounded-2xl border border-dashed border-amber-200 bg-white/70 p-5 text-sm text-amber-900">
+                No assigned learners match that search.
+              </div>
+            ) : (
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {filteredAssignedUsers.map((learner) => {
               const override = roleplay.settings.attemptOverrides?.[learner.id];
+              const attemptStatus = attemptStatuses[learner.id];
               const learnerAttempts = courseAssessments.filter(
                 (assessment) =>
                   assessment.learnerId === learner.id ||
                   (!assessment.learnerId && assessment.learnerEmail === learner.email),
               ).length;
+              const attemptsUsed = attemptStatus?.completedAttempts ?? learnerAttempts;
+              const maxAttempts =
+                attemptStatus?.maxAttempts ?? override?.maxAttempts ?? maxTraineeRolePlayAttempts;
               return (
                 <div key={learner.id} className="rounded-2xl bg-white p-4 shadow-sm">
                   <p className="font-bold text-slate-950">{learner.name}</p>
                   <p className="text-xs text-slate-500">{learner.email}</p>
                   <p className="mt-2 text-xs font-semibold text-slate-500">
-                    Attempts used: {learnerAttempts} / {override?.maxAttempts ?? maxTraineeRolePlayAttempts}
+                    Attempts used: {attemptsUsed} / {maxAttempts}
                   </p>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <input
@@ -313,11 +453,21 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
                     >
                       Save max attempts
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => void resetAttemptsUsed(learner.id)}
+                      disabled={isSaving}
+                      className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Reset attempts used
+                    </button>
                   </div>
                 </div>
               );
             })}
-          </div>
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -337,13 +487,14 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
                 <th className="px-4 py-3">Outcome</th>
                 <th className="px-4 py-3">Coach Feedback</th>
                 <th className="px-4 py-3">Completed</th>
+                <th className="px-4 py-3">Transcript</th>
                 <th className="px-4 py-3">Review</th>
               </tr>
             </thead>
             <tbody>
               {courseAssessments.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
                     No learners have completed this course exam yet.
                   </td>
                 </tr>
@@ -359,6 +510,14 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
                       <p className="line-clamp-2 max-w-sm text-xs leading-5 text-slate-600">{assessment.summary}</p>
                     </td>
                     <td className="px-4 py-3">{formatDate(assessment.createdAt)}</td>
+                    <td className="px-4 py-3">
+                      <a
+                        className="font-bold text-primary hover:text-blue-700"
+                        href={`/api/assessments/${assessment.id}/transcript`}
+                      >
+                        Download
+                      </a>
+                    </td>
                     <td className="px-4 py-3">
                       <Link className="font-bold text-primary hover:text-blue-700" href={`/assessment/${assessment.id}`}>Open</Link>
                     </td>

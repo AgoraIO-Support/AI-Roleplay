@@ -4,13 +4,13 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import type { AuthSessionUser } from "@/src/lib/auth/session";
-import type { MockRole } from "@/lib/types";
+import type { AppRole } from "@/lib/types";
 
-export function MockRoleGuard({
+export function RoleGuard({
   allowedRoles,
   children,
 }: {
-  allowedRoles: MockRole[];
+  allowedRoles: AppRole[];
   children: React.ReactNode;
 }) {
   const [user, setUser] = useState<AuthSessionUser | null>(null);

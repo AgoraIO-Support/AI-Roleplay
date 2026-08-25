@@ -5,10 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { NavItem } from "@/lib/types";
 
-import { navigationItems } from "@/lib/mock-data";
-import { canAccessNavItem } from "@/lib/mock-auth";
+import { navigationItems } from "@/lib/navigation";
+import { canAccessNavItem } from "@/lib/authz";
 import { cn } from "@/lib/utils";
-import type { MockRole } from "@/lib/types";
+import type { AppRole } from "@/lib/types";
 import {
   AiRolePlayIcon,
   AssessmentIcon,
@@ -44,7 +44,7 @@ function iconFor(item: NavItem["icon"], className = "h-5 w-5") {
   }
 }
 
-export function Sidebar({ collapsed = false, role }: { collapsed?: boolean; role: MockRole }) {
+export function Sidebar({ collapsed = false, role }: { collapsed?: boolean; role: AppRole }) {
   const pathname = usePathname();
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const visibleNavigationItems = navigationItems.filter((item) => canAccessNavItem(role, item));

@@ -8,7 +8,7 @@ import type { AuthSessionUser } from "@/src/lib/auth/session";
 import type { SafeAuthUser } from "@/src/lib/auth/userStore";
 import { canUserManageRolePlay } from "@/src/lib/roleplays/access";
 import type { RolePlayConfig } from "@/src/lib/roleplays/types";
-import type { MockRole } from "@/lib/types";
+import type { AppRole } from "@/lib/types";
 
 type ControlPanelSection = "users" | "courses";
 
@@ -16,7 +16,7 @@ type UserForm = {
   name: string;
   email: string;
   position: string;
-  role: MockRole;
+  role: AppRole;
   password: string;
 };
 
@@ -25,7 +25,7 @@ type EditDialogState = {
   name: string;
   email: string;
   position: string;
-  role: MockRole;
+  role: AppRole;
   isActive: boolean;
 };
 
@@ -85,7 +85,7 @@ function assessmentCompletionMinutes(assessment: SavedFinalAssessment) {
   return Math.max(0, Math.round((timestamps[timestamps.length - 1] - timestamps[0]) / 60000));
 }
 
-function roleLabel(role: MockRole) {
+function roleLabel(role: AppRole) {
   if (role === "root_admin") {
     return "Root Admin";
   }
@@ -124,6 +124,8 @@ export function ControlPanel({ section = "users" }: { section?: ControlPanelSect
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [deadlineDrafts, setDeadlineDrafts] = useState<Record<string, DeadlineDraft>>({});
   const [attemptOverrideDrafts, setAttemptOverrideDrafts] = useState<Record<string, number>>({});
+  const [attemptOverrideSearchTexts, setAttemptOverrideSearchTexts] = useState<Record<string, string>>({});
+  const [attemptOverrideSearchQueries, setAttemptOverrideSearchQueries] = useState<Record<string, string>>({});
   const [userForm, setUserForm] = useState<UserForm>(defaultUserForm);
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
@@ -242,7 +244,7 @@ export function ControlPanel({ section = "users" }: { section?: ControlPanelSect
     }
 
     return users.filter((user) =>
-      [user.name, user.email, user.position, roleLabel(user.role), userStatusLabel(user.isActive), user.source]
+      [user.name, user.email, user.position, roleLabel(user.role), userStatusLabel(user.isActive)]
         .join(" ")
         .toLowerCase()
         .includes(query),
@@ -521,6 +523,34 @@ export function ControlPanel({ section = "users" }: { section?: ControlPanelSect
     );
   }
 
+  async function resetAttemptsUsed(roleplay: RolePlayConfig, userId: string) {
+    const learner = users.find((candidate) => candidate.id === userId);
+    const learnerLabel = learner?.name ?? learner?.email ?? "this learner";
+    if (
+      !window.confirm(
+        `Reset attempts used for ${learnerLabel}? This will not delete assessment results or transcripts.`,
+      )
+    ) {
+      return;
+    }
+
+    setMessage(null);
+    setErrorMessage(null);
+
+    const response = await fetch(
+      `/api/roleplays/${roleplay.id}/attempts?userId=${encodeURIComponent(userId)}`,
+      { method: "DELETE" },
+    );
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+
+    if (!response.ok) {
+      setErrorMessage(payload.error ?? `Unable to reset attempts. HTTP ${response.status}.`);
+      return;
+    }
+
+    setMessage(`Attempts used reset for ${learnerLabel}.`);
+  }
+
   if (isLoading) {
     return (
       <section className="rounded-3xl border border-blue-100 bg-white p-6 text-sm text-slate-500 shadow-soft">
@@ -773,6 +803,16 @@ export function ControlPanel({ section = "users" }: { section?: ControlPanelSect
                 const assignedUsers = users.filter((user) =>
                   roleplay.settings.assignedTraineeIds?.includes(user.id),
                 );
+                const attemptOverrideSearchText = attemptOverrideSearchTexts[roleplay.id] ?? "";
+                const attemptOverrideSearchQuery = attemptOverrideSearchQueries[roleplay.id] ?? "";
+                const filteredAssignedUsers = attemptOverrideSearchQuery.trim()
+                  ? assignedUsers.filter((user) =>
+                      [user.name, user.email]
+                        .join(" ")
+                        .toLowerCase()
+                        .includes(attemptOverrideSearchQuery.trim().toLowerCase()),
+                    )
+                  : assignedUsers;
                 const averageScore =
                   courseAssessments.length === 0
                     ? null
@@ -1046,15 +1086,70 @@ export function ControlPanel({ section = "users" }: { section?: ControlPanelSect
                               Increase a learner's max attempts if they missed the deadline or need
                               one more retake.
                             </p>
+                            <div className="mt-3 flex flex-col gap-2 rounded-2xl bg-white/70 p-3 sm:flex-row">
+                              <input
+                                value={attemptOverrideSearchText}
+                                onChange={(event) =>
+                                  setAttemptOverrideSearchTexts((current) => ({
+                                    ...current,
+                                    [roleplay.id]: event.target.value,
+                                  }))
+                                }
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    setAttemptOverrideSearchQueries((current) => ({
+                                      ...current,
+                                      [roleplay.id]: attemptOverrideSearchText,
+                                    }));
+                                  }
+                                }}
+                                placeholder="Search learner name or email"
+                                className="min-w-0 flex-1 rounded-xl border border-amber-100 bg-white px-3 py-2 text-sm outline-none focus:border-amber-300"
+                              />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setAttemptOverrideSearchQueries((current) => ({
+                                    ...current,
+                                    [roleplay.id]: attemptOverrideSearchText,
+                                  }))
+                                }
+                                className="rounded-xl bg-amber-500 px-4 py-2 text-xs font-semibold text-white transition hover:bg-amber-600"
+                              >
+                                Search
+                              </button>
+                              {attemptOverrideSearchQuery && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAttemptOverrideSearchTexts((current) => ({
+                                      ...current,
+                                      [roleplay.id]: "",
+                                    }));
+                                    setAttemptOverrideSearchQueries((current) => ({
+                                      ...current,
+                                      [roleplay.id]: "",
+                                    }));
+                                  }}
+                                  className="rounded-xl border border-amber-200 bg-white px-4 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-50"
+                                >
+                                  Clear
+                                </button>
+                              )}
+                            </div>
                             <div className="mt-3 grid gap-3 md:grid-cols-2">
-                              {assignedUsers.map((learner) => {
+                              {filteredAssignedUsers.length === 0 ? (
+                                <p className="rounded-2xl border border-dashed border-amber-200 bg-white/70 p-4 text-sm text-amber-900 md:col-span-2">
+                                  No assigned learners match that search.
+                                </p>
+                              ) : filteredAssignedUsers.map((learner) => {
                                 const override = roleplay.settings.attemptOverrides?.[learner.id];
                                 const key = `${roleplay.id}:${learner.id}`;
                                 return (
                                   <div key={learner.id} className="rounded-2xl bg-white p-3">
                                     <p className="font-semibold text-slate-950">{learner.name}</p>
                                     <p className="text-xs text-slate-500">{learner.email}</p>
-                                    <div className="mt-3 flex items-center gap-2">
+                                    <div className="mt-3 flex flex-wrap items-center gap-2">
                                       <input
                                         type="number"
                                         min={1}
@@ -1077,6 +1172,13 @@ export function ControlPanel({ section = "users" }: { section?: ControlPanelSect
                                         className="rounded-xl bg-amber-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-amber-600"
                                       >
                                         Save max attempts
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => void resetAttemptsUsed(roleplay, learner.id)}
+                                        className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
+                                      >
+                                        Reset attempts used
                                       </button>
                                     </div>
                                   </div>
@@ -1102,6 +1204,7 @@ export function ControlPanel({ section = "users" }: { section?: ControlPanelSect
                                   <th className="border-b border-blue-100 px-3 py-3">Outcome</th>
                                   <th className="border-b border-blue-100 px-3 py-3">Coach Feedback</th>
                                   <th className="border-b border-blue-100 px-3 py-3">Completed</th>
+                                  <th className="border-b border-blue-100 px-3 py-3">Transcript</th>
                                   <th className="border-b border-blue-100 px-3 py-3">Review</th>
                                 </tr>
                               </thead>
@@ -1132,6 +1235,14 @@ export function ControlPanel({ section = "users" }: { section?: ControlPanelSect
                                     </td>
                                     <td className="border-b border-blue-50 px-3 py-3">
                                       {formatDate(assessment.createdAt)}
+                                    </td>
+                                    <td className="border-b border-blue-50 px-3 py-3">
+                                      <a
+                                        className="font-semibold text-primary hover:text-blue-700"
+                                        href={`/api/assessments/${assessment.id}/transcript`}
+                                      >
+                                        Download
+                                      </a>
                                     </td>
                                     <td className="border-b border-blue-50 px-3 py-3">
                                       <Link className="font-semibold text-primary hover:text-blue-700" href={`/assessment/${assessment.id}`}>
@@ -1208,7 +1319,7 @@ export function ControlPanel({ section = "users" }: { section?: ControlPanelSect
                 <select
                   value={userForm.role}
                   onChange={(event) =>
-                    setUserForm((current) => ({ ...current, role: event.target.value as MockRole }))
+                    setUserForm((current) => ({ ...current, role: event.target.value as AppRole }))
                   }
                   className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-primary"
                 >
@@ -1308,7 +1419,7 @@ export function ControlPanel({ section = "users" }: { section?: ControlPanelSect
                   value={editDialog.role}
                   onChange={(event) =>
                     setEditDialog((current) =>
-                      current ? { ...current, role: event.target.value as MockRole } : current,
+                      current ? { ...current, role: event.target.value as AppRole } : current,
                     )
                   }
                   className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-primary"

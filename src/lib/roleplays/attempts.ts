@@ -112,7 +112,7 @@ export async function fetchRolePlayAttemptStatus(userId: string, rolePlayId: str
       }
     }
   } catch {
-    // Local fallback keeps the alpha test usable before DATABASE_URL is configured.
+    // Keep a browser-side attempt state when the server is temporarily unavailable.
   }
 
   return getRolePlayAttemptStatus(userId, rolePlayId);
@@ -132,7 +132,7 @@ export async function completeRolePlayAttempt(userId: string, rolePlayId: string
       }
     }
   } catch {
-    // Local fallback keeps the alpha test usable before DATABASE_URL is configured.
+    // Keep a browser-side attempt state when the server is temporarily unavailable.
   }
 
   return recordRolePlayAttemptCompletion(userId, rolePlayId);

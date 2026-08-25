@@ -1,2 +1,1 @@
-export const sessionCookieName = "cse_alpha_session";
-
+export const sessionCookieName = "cse_auth_session";

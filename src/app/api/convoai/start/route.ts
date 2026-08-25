@@ -164,7 +164,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "delay_ms must be 800 or 1200." }, { status: 400 });
   }
 
-  const channelName = `mock-frustrated-customer-${Date.now()}`;
+  const channelName = `roleplay-session-${Date.now()}`;
   const traineeUid = "7001001";
   const agentUid = "9001001";
   const appId = process.env.NEXT_PUBLIC_AGORA_APP_ID ?? "";
@@ -256,7 +256,7 @@ export async function POST(request: Request) {
   });
 
   const joinPayload: ConvoAiJoinPayload = {
-    name: `frustrated-customer-escalation-${Date.now()}`,
+    name: `roleplay-session-${Date.now()}`,
     properties: {
       channel: channelName,
       token: agentRtcToken,

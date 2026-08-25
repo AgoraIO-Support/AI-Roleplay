@@ -115,7 +115,6 @@ export default async function ProfilePage() {
             <div className="flex flex-wrap gap-3">
               <Badge>{roleLabel(session.role)}</Badge>
               <Badge className="bg-white/10 text-white">{fullUser?.isActive === false ? "Inactive" : "Active account"}</Badge>
-              {fullUser?.source && <Badge className="bg-white/10 text-white">{fullUser.source === "seed" ? "Default user" : "Managed user"}</Badge>}
             </div>
             <Link
               href="/profile/password"

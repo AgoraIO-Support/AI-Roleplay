@@ -27,7 +27,6 @@ import {
   fetchRolePlayAttemptStatus,
   type RolePlayAttemptStatus,
 } from "@/src/lib/roleplays/attempts";
-import { defaultRolePlayCharacterPreset } from "@/src/lib/roleplays/characterPresets";
 import { fetchRolePlayConfig } from "@/src/lib/roleplays/storage";
 import type { RolePlayConfig } from "@/src/lib/roleplays/types";
 
@@ -206,44 +205,6 @@ function withCustomerPersonaGuard(config: RolePlayConfig) {
   ].join("\n\n");
 }
 
-function fallbackConfig(rolePlayId: string): RolePlayConfig {
-  return {
-    id: rolePlayId,
-    status: "draft",
-    plan: {
-      scenario: "Test a customer support escalation conversation.",
-      learnerRole: "Customer Support Engineer",
-    },
-    character: {
-      presetId: defaultRolePlayCharacterPreset.id,
-      name: defaultRolePlayCharacterPreset.name,
-      role: "Enterprise customer",
-      voiceId: defaultRolePlayCharacterPreset.voiceId,
-      personalityBackground: "Direct and skeptical, but cooperative when the learner is specific.",
-      greetingMessage: "Can we please get this issue moving today?",
-    },
-    settings: {
-      meetingTitle: "Support Escalation Role Play",
-      durationMinutes: 8,
-      learnerGoals: [
-        {
-          id: "fallback-session-goal",
-          label: "Provide clear next steps",
-          required: true,
-          completed: false,
-        },
-      ],
-      evaluatorPrompt: "Evaluate learner responses against role play goals.",
-    },
-    generated: {
-      system_message: `You are ${defaultRolePlayCharacterPreset.name}, an enterprise customer escalation contact. You are the customer/persona in the role play, not the engineer. Stay in character, speak in first person, and do not act as coach, evaluator, assistant, or support engineer. Keep the conversation focused on the configured Agora customer issue and do not invent unrelated product behavior.`,
-      greeting_message: "Can we please get this issue moving today?",
-      greeting_message_switch: "single_first",
-      delay_ms: 1200,
-    },
-  };
-}
-
 export default function RolePlayPreviewSessionPage() {
   const router = useRouter();
   const params = useParams<{ rolePlayId: string }>();
@@ -339,7 +300,12 @@ export default function RolePlayPreviewSessionPage() {
     setPreCallPreviewAccepted(false);
     startAttemptedRef.current = false;
     void (async () => {
-      const nextConfig = (await fetchRolePlayConfig(rolePlayId)) ?? fallbackConfig(rolePlayId);
+      const nextConfig = await fetchRolePlayConfig(rolePlayId);
+      if (!nextConfig) {
+        setConfig(null);
+        setAccessDenied(true);
+        return;
+      }
       setConfig(nextConfig);
       setLearnerGoals(
         nextConfig.settings.learnerGoals.map((goal) => ({

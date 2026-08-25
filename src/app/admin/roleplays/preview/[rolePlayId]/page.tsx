@@ -4,82 +4,53 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { defaultRolePlayCharacterPreset } from "@/src/lib/roleplays/characterPresets";
+import { fetchRolePlayConfig } from "@/src/lib/roleplays/storage";
 import type { RolePlayConfig } from "@/src/lib/roleplays/types";
-
-const storagePrefix = "cse-roleplay-config";
-
-function fallbackConfig(rolePlayId: string): RolePlayConfig {
-  return {
-    id: rolePlayId,
-    status: "draft",
-    plan: {
-      scenario:
-        "A customer is frustrated about a production support escalation and needs the engineer to collect details, acknowledge impact, and provide next steps.",
-      learnerRole: "Customer Support Engineer",
-    },
-    character: {
-      presetId: defaultRolePlayCharacterPreset.id,
-      name: defaultRolePlayCharacterPreset.name,
-      role: "Enterprise customer escalation contact",
-      voiceId: defaultRolePlayCharacterPreset.voiceId,
-      personalityBackground:
-        "Direct, skeptical, and time-sensitive. Cooperates when the engineer shows ownership and asks focused questions.",
-      greetingMessage: "I need someone to finally take ownership of this issue.",
-    },
-    settings: {
-      meetingTitle: "Escalated Support Role Play",
-      durationMinutes: 8,
-      learnerGoals: [
-        {
-          id: "fallback-goal-1",
-          label: "Acknowledge the customer's frustration",
-          required: true,
-          completed: false,
-        },
-        {
-          id: "fallback-goal-2",
-          label: "Collect key troubleshooting details",
-          required: true,
-          completed: false,
-        },
-      ],
-      evaluatorPrompt:
-        "Evaluate only the learner's responses and determine whether required goals were covered.",
-    },
-    generated: {
-      system_message: "TODO: Generated system message will be loaded from saved role play config.",
-      greeting_message: "I need someone to finally take ownership of this issue.",
-      greeting_message_switch: "single_first",
-      delay_ms: 1200,
-    },
-  };
-}
 
 export default function RolePlayPreviewPage() {
   const router = useRouter();
   const params = useParams<{ rolePlayId: string }>();
   const rolePlayId = params.rolePlayId;
   const [config, setConfig] = useState<RolePlayConfig | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!rolePlayId) return;
-    // TODO: Replace localStorage lookup with persisted role play fetch.
-    const stored = localStorage.getItem(`${storagePrefix}:${rolePlayId}`);
-    setConfig(stored ? (JSON.parse(stored) as RolePlayConfig) : fallbackConfig(rolePlayId));
+    setIsLoading(true);
+    void fetchRolePlayConfig(rolePlayId)
+      .then(setConfig)
+      .finally(() => setIsLoading(false));
   }, [rolePlayId]);
 
   function startRolePlay() {
-    if (config) {
-      localStorage.setItem(`${storagePrefix}:${config.id}`, JSON.stringify(config));
-    }
     router.push(`/admin/roleplays/preview/${rolePlayId}/session`);
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 px-6 py-8 text-slate-100">
+        <div className="mx-auto max-w-5xl text-sm text-slate-300">Loading role play...</div>
+      </div>
+    );
   }
 
   if (!config) {
     return (
       <div className="min-h-screen bg-slate-950 px-6 py-8 text-slate-100">
-        <div className="mx-auto max-w-5xl text-sm text-slate-300">Loading role play...</div>
+        <div className="mx-auto max-w-2xl rounded-3xl border border-amber-300/25 bg-amber-300/10 p-8 text-amber-50">
+          <p className="text-xs uppercase tracking-[0.24em] text-amber-200">Course unavailable</p>
+          <h1 className="mt-3 text-2xl font-semibold text-white">This roleplay could not be loaded.</h1>
+          <p className="mt-3 text-sm leading-7 text-amber-100">
+            Create or publish the course from the database-backed course builder, then open the
+            preview again.
+          </p>
+          <Link
+            href="/course-builder"
+            className="mt-5 inline-flex rounded-2xl bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
+          >
+            Return to Course Builder
+          </Link>
+        </div>
       </div>
     );
   }

@@ -8,7 +8,7 @@ import {
   findAuthUserById,
   updateAuthUserDetails,
 } from "@/src/lib/auth/userStore";
-import type { MockRole } from "@/lib/types";
+import type { AppRole } from "@/lib/types";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -31,7 +31,7 @@ function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function asRole(value: unknown): MockRole | null {
+function asRole(value: unknown): AppRole | null {
   return value === "root_admin" || value === "course_admin" || value === "trainee"
     ? value
     : null;
@@ -137,10 +137,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
   const deleted = await deleteAuthUser(id);
   if (!deleted) {
-    return NextResponse.json(
-      { error: "User could not be deleted. The root admin seed user is protected." },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "User could not be deleted." }, { status: 400 });
   }
 
   return NextResponse.json({ deleted: true });

@@ -79,8 +79,7 @@ export function FinalAssessmentsList() {
           </h1>
           <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">
             Review generated roleplay assessments, objective coverage, rubric dimensions,
-            transcripts, and turn-level coaching feedback. This page now uses saved assessment
-            data from completed simulations instead of mock results.
+            transcripts, and turn-level coaching feedback from completed simulations.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
@@ -278,4 +277,3 @@ export function FinalAssessmentsList() {
     </div>
   );
 }
-

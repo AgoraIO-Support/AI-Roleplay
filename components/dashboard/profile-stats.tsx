@@ -1,5 +1,10 @@
 import { Card, CardContent } from "@/components/ui/card";
-import type { ProfileMetric } from "@/lib/types";
+
+type ProfileMetric = {
+  label: string;
+  value: string;
+  helper: string;
+};
 
 export function ProfileStats({ metrics }: { metrics: ProfileMetric[] }) {
   return (
