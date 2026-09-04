@@ -17,10 +17,13 @@
     "db:verify:local": "bash scripts/db/verify-local.sh"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^6.19.3",
     "@prisma/client": "^6.19.3",
+    "@types/pg": "^8.23.1",
     "agora-rtc-sdk-ng": "^4.24.3",
     "agora-token": "^2.0.5",
     "next": "^16.2.11",
+    "pg": "^8.23.0",
     "react": "19.0.0",
     "react-dom": "19.0.0"
   },
