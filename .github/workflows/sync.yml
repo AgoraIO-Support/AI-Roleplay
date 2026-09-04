@@ -1,0 +1,67 @@
+name: Sync to Devin066/AI-Roleplay
+
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+  delete:
+  workflow_dispatch:
+
+concurrency:
+  group: sync-personal
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      DEST_REPO: Devin066/AI-Roleplay
+    steps:
+      - name: Clone source
+        env:
+          GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Source may be private, so authenticate with the run's own token
+          # (contents:read on this repo). Passed via askpass so it never lands
+          # in the remote URL, the process list, or the log.
+          printf '%s\n' '#!/bin/sh' 'echo "$GIT_TOKEN"' > "$RUNNER_TEMP/askpass.sh"
+          chmod 700 "$RUNNER_TEMP/askpass.sh"
+          export GIT_ASKPASS="$RUNNER_TEMP/askpass.sh"
+          export GIT_TERMINAL_PROMPT=0
+          git clone --mirror \
+            "https://x-access-token@github.com/${GITHUB_REPOSITORY}.git" src.git
+
+      - name: Push branches and tags to destination
+        working-directory: src.git
+        env:
+          GIT_TOKEN: ${{ secrets.PERSONAL_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Drop GitHub-internal refs that must never be mirrored:
+          # refs/pull/* (read-only on the destination, push is rejected)
+          # refs/remotes/*, refs/notes/* (not part of the visible repo state)
+          git for-each-ref --format='%(refname)' \
+            refs/pull refs/remotes refs/notes \
+            | while read -r ref; do git update-ref -d "$ref"; done
+
+          printf '%s\n' '#!/bin/sh' 'echo "$GIT_TOKEN"' > "$RUNNER_TEMP/askpass.sh"
+          chmod 700 "$RUNNER_TEMP/askpass.sh"
+          export GIT_ASKPASS="$RUNNER_TEMP/askpass.sh"
+          export GIT_TERMINAL_PROMPT=0
+
+          git remote add dest "https://x-access-token@github.com/${DEST_REPO}.git"
+
+          # --prune deletes destination refs that no longer exist upstream,
+          # --force makes force-pushes upstream propagate. Together these make
+          # the run idempotent: re-running with no upstream change is a no-op.
+          git push --force --prune dest \
+            'refs/heads/*:refs/heads/*' \
+            'refs/tags/*:refs/tags/*'
+
+      - name: Report
+        run: echo "Synced ${GITHUB_REPOSITORY} -> ${DEST_REPO}"
