@@ -30,20 +30,16 @@ export default function SimulationPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-panel-border bg-panel text-panel-foreground">
+        <Card className="panel-surface border-panel-border">
           <CardHeader>
-            <CardDescription className="text-subtle-foreground">
-              Access model
-            </CardDescription>
-            <CardTitle className="text-primary-foreground">
-              Course assignments
-            </CardTitle>
+            <CardDescription>Access model</CardDescription>
+            <CardTitle>Course assignments</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4 text-sm text-subtle-foreground">
-            <div className="rounded-2xl bg-surface/10 p-4">
+          <CardContent className="space-y-4 text-sm text-muted-foreground">
+            <div className="rounded-2xl bg-panel-foreground/10 p-4">
               Trainees only see courses assigned to their logged-in account.
             </div>
-            <div className="rounded-2xl bg-surface/10 p-4">
+            <div className="rounded-2xl bg-panel-foreground/10 p-4">
               Admins can publish courses and update assignment access from the
               builder.
             </div>

@@ -149,7 +149,7 @@
 
     --panel: 220 34% 19%;
     --panel-foreground: 210 40% 96%;
-    --panel-muted-foreground: 215 20% 70%;
+    --panel-muted-foreground: 215 22% 80%;
     --panel-border: 215 20% 38%;
 
     --scrim: 222 47% 3%;
@@ -202,6 +202,25 @@
     background-image:
       radial-gradient(circle at top left, hsl(var(--warning) / 0.18), transparent 34%),
       linear-gradient(180deg, hsl(var(--warning-subtle) / 0.35), hsl(var(--background)));
+  }
+
+  /*
+   * Inverted panel. Rebinds the text/border tokens for its whole subtree, so
+   * children written against the normal tokens (text-muted-foreground,
+   * border-border, ...) stay legible on the dark panel in BOTH themes.
+   * Without this, `text-muted-foreground` resolves to a dark grey in light
+   * mode and disappears against the panel.
+   */
+  .panel-surface {
+    background-color: hsl(var(--panel));
+    color: hsl(var(--panel-foreground));
+
+    --foreground: var(--panel-foreground);
+    --card-foreground: var(--panel-foreground);
+    --muted-foreground: var(--panel-muted-foreground);
+    --subtle-foreground: var(--panel-muted-foreground);
+    --border: var(--panel-border);
+    --card: var(--panel);
   }
 
   .surface-scrollbar {

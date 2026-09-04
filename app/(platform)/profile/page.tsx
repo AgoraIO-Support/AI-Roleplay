@@ -160,14 +160,10 @@ export default async function ProfilePage() {
   return (
     <div className="space-y-6">
       <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <Card className="border-panel-border bg-panel text-panel-foreground">
+        <Card className="panel-surface border-panel-border">
           <CardHeader>
-            <CardDescription className="text-subtle-foreground">
-              Account profile
-            </CardDescription>
-            <CardTitle className="text-primary-foreground">
-              {session.name}
-            </CardTitle>
+            <CardDescription>Account profile</CardDescription>
+            <CardTitle>{session.name}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="flex items-center gap-4">
@@ -190,7 +186,7 @@ export default async function ProfilePage() {
             </p>
             <div className="flex flex-wrap gap-3">
               <Badge>{roleLabel(session.role)}</Badge>
-              <Badge className="bg-surface/10 text-primary-foreground">
+              <Badge className="bg-panel-foreground/10 text-primary-foreground">
                 {fullUser?.isActive === false ? "Inactive" : "Active account"}
               </Badge>
             </div>

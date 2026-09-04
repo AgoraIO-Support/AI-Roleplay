@@ -718,7 +718,7 @@ function LearnerDashboard({ data }: { data: LearnerDashboardData }) {
             </div>
           ) : (
             <div className="mt-6 space-y-4">
-              <div className="rounded-3xl border border-panel-border bg-panel p-5 text-panel-foreground shadow-soft">
+              <div className="panel-surface rounded-3xl border border-panel-border p-5 shadow-soft">
                 <p className="text-sm font-semibold text-panel-muted-foreground">
                   {latestAssessment.title}
                 </p>

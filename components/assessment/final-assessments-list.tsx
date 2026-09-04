@@ -108,7 +108,7 @@ export function FinalAssessmentsList() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-panel-border bg-panel p-6 text-panel-foreground shadow-soft">
+        <div className="panel-surface rounded-3xl border border-panel-border p-6 shadow-soft">
           <p className="text-xs uppercase tracking-[0.24em] text-info">
             Latest Result
           </p>
@@ -123,7 +123,7 @@ export function FinalAssessmentsList() {
                     {formatDate(latestAssessment.createdAt)}
                   </p>
                 </div>
-                <span className="rounded-2xl bg-surface px-4 py-3 text-2xl font-semibold text-foreground">
+                <span className="rounded-2xl bg-panel-foreground px-4 py-3 text-2xl font-semibold text-panel">
                   {latestAssessment.overallScore}%
                 </span>
               </div>
@@ -132,7 +132,7 @@ export function FinalAssessmentsList() {
               </p>
               <Link
                 href={`/assessment/${latestAssessment.id}`}
-                className="mt-5 inline-flex rounded-2xl bg-surface min-h-control px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-primary-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="mt-5 inline-flex rounded-2xl bg-panel-foreground min-h-control px-4 py-2 text-sm font-semibold text-panel transition hover:bg-panel-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 Open Review
               </Link>

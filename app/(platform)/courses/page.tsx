@@ -36,22 +36,18 @@ export default function CoursesPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-panel-border bg-panel text-panel-foreground">
+        <Card className="panel-surface border-panel-border">
           <CardHeader>
-            <CardDescription className="text-subtle-foreground">
-              How courses work
-            </CardDescription>
-            <CardTitle className="text-primary-foreground">
-              Practice, submit, improve
-            </CardTitle>
+            <CardDescription>How courses work</CardDescription>
+            <CardTitle>Practice, submit, improve</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4 text-sm text-subtle-foreground">
-            <div className="rounded-2xl bg-surface/10 p-4">
+          <CardContent className="space-y-4 text-sm text-muted-foreground">
+            <div className="rounded-2xl bg-panel-foreground/10 p-4">
               Each course includes a learner scenario, customer persona,
               objectives, duration, and attempt allowance set by the course
               admin.
             </div>
-            <div className="rounded-2xl bg-surface/10 p-4">
+            <div className="rounded-2xl bg-panel-foreground/10 p-4">
               After the call, the system saves the transcript and creates
               coaching feedback you can review from Assessment Results.
             </div>
