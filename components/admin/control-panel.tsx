@@ -724,7 +724,7 @@ export function ControlPanel({
 
       {(message || errorMessage) && (
         <div
-          className={`fixed right-6 top-6 z-[70] max-w-md rounded-2xl border p-4 text-sm font-medium shadow-2xl ${
+          className={`fixed right-6 top-6 z-toast max-w-md rounded-2xl border p-4 text-sm font-medium shadow-2xl ${
             errorMessage
               ? "border-warning/30 bg-warning-subtle text-warning-subtle-foreground"
               : "border-success/30 bg-success-subtle text-success-subtle-foreground"
@@ -1551,7 +1551,7 @@ export function ControlPanel({
       )}
 
       {isCreateUserOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 p-4">
+        <div className="fixed inset-0 z-overlay flex items-center justify-center bg-scrim/60 p-4">
           <form
             onSubmit={(event) => void createUser(event)}
             className="w-full max-w-lg rounded-3xl border border-border bg-surface p-6 shadow-2xl"
@@ -1663,7 +1663,7 @@ export function ControlPanel({
       )}
 
       {editDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 p-4">
+        <div className="fixed inset-0 z-overlay flex items-center justify-center bg-scrim/60 p-4">
           <form
             onSubmit={(event) => void submitUserEdit(event)}
             className="w-full max-w-lg rounded-3xl border border-border bg-surface p-6 shadow-2xl"
@@ -1811,7 +1811,7 @@ export function ControlPanel({
       )}
 
       {deleteDialog && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-scrim/60 p-4">
+        <div className="fixed inset-0 z-overlay-top flex items-center justify-center bg-scrim/60 p-4">
           <div className="w-full max-w-md rounded-3xl border border-danger/30 bg-surface p-6 shadow-2xl">
             <p className="text-xs uppercase tracking-[0.24em] text-danger-subtle-foreground">
               Confirm Delete

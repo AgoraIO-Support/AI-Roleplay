@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -87,7 +87,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-dvh bg-background lg:flex">
+    <div
+      className="min-h-dvh bg-background lg:flex"
+      style={
+        {
+          // Fixed elements inside the content column offset by this so they
+          // do not paint across the sidebar rail.
+          "--app-sidebar-width": isSidebarCollapsed ? "5.5rem" : "17rem",
+        } as CSSProperties
+      }
+    >
       <Sidebar
         collapsed={isSidebarCollapsed}
         role={user.role}

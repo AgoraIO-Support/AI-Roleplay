@@ -940,7 +940,7 @@ export function RolePlayBuilder({
       }
     >
       {activeBuilderAction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/35 px-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-overlay flex items-center justify-center bg-scrim/35 px-4 backdrop-blur-sm">
           <div className="w-full max-w-xl rounded-[2rem] border border-border bg-surface/95 p-8 text-center shadow-overlay">
             <div
               className={`mx-auto flex h-16 w-16 items-center justify-center rounded-3xl text-2xl font-semibold ${
@@ -1602,7 +1602,7 @@ export function RolePlayBuilder({
           </aside>
         </main>
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-primary/20 bg-surface/95 px-4 py-3 shadow-overlay backdrop-blur-xl sm:px-6 lg:left-[var(--app-sidebar-width,0px)]">
+      <div className="fixed inset-x-0 bottom-0 z-sticky border-t border-border bg-surface/95 px-4 py-3 shadow-overlay backdrop-blur-xl sm:px-6 lg:left-[var(--app-sidebar-width,17rem)] lg:transition-[left] lg:duration-slow lg:ease-out">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-2">
             <button
