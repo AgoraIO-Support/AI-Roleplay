@@ -34,7 +34,10 @@ export function proxy(request: NextRequest) {
 
   if (!hasSessionCookie) {
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
+    const nextPath = `${pathname}${request.nextUrl.search}`;
+    if (nextPath !== "/") {
+      loginUrl.searchParams.set("next", nextPath);
+    }
     return NextResponse.redirect(loginUrl);
   }
 
