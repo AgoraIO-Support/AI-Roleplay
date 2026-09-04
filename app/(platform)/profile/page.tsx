@@ -160,7 +160,7 @@ export default async function ProfilePage() {
   return (
     <div className="space-y-6">
       <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <Card className="bg-foreground text-background">
+        <Card className="border-panel-border bg-panel text-panel-foreground">
           <CardHeader>
             <CardDescription className="text-subtle-foreground">
               Account profile

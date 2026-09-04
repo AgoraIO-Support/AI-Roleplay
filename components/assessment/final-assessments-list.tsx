@@ -108,7 +108,7 @@ export function FinalAssessmentsList() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-foreground/20 bg-foreground p-6 text-background shadow-soft">
+        <div className="rounded-3xl border border-panel-border bg-panel p-6 text-panel-foreground shadow-soft">
           <p className="text-xs uppercase tracking-[0.24em] text-info">
             Latest Result
           </p>

@@ -75,6 +75,13 @@
     --sidebar-border: 217 33% 22%;
     --sidebar-accent: 217 33% 20%;
 
+    /* Inverted accent panel. Deliberately dark in BOTH themes — using
+       --foreground here would flip it to white in dark mode. */
+    --panel: 222 47% 11%;
+    --panel-foreground: 210 40% 96%;
+    --panel-muted-foreground: 215 20% 72%;
+    --panel-border: 217 33% 22%;
+
     --scrim: 222 47% 8%;
 
     --radius: 0.75rem;
@@ -139,6 +146,11 @@
     --sidebar-muted-foreground: 215 20% 68%;
     --sidebar-border: 215 27% 18%;
     --sidebar-accent: 217 33% 16%;
+
+    --panel: 220 34% 19%;
+    --panel-foreground: 210 40% 96%;
+    --panel-muted-foreground: 215 20% 70%;
+    --panel-border: 215 20% 38%;
 
     --scrim: 222 47% 3%;
   }

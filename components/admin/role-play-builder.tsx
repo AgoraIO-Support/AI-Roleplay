@@ -1584,7 +1584,7 @@ export function RolePlayBuilder({
               </dl>
             </div>
             {canViewSystemMessage && (
-              <div className="overflow-hidden rounded-3xl border border-border bg-foreground shadow-soft">
+              <div className="overflow-hidden rounded-3xl border border-panel-border bg-panel shadow-soft">
                 <div className="border-b border-border px-5 py-4">
                   <p className="text-xs uppercase tracking-[0.2em] text-info">
                     System Message Preview

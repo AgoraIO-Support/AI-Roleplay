@@ -218,7 +218,7 @@ function DashboardError({ message }: { message: string }) {
       <button
         type="button"
         onClick={() => window.location.reload()}
-        className="mt-5 inline-flex items-center justify-center rounded-xl bg-foreground min-h-control px-4 py-2 text-sm font-semibold text-background transition hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="mt-5 inline-flex items-center justify-center rounded-xl bg-panel min-h-control px-4 py-2 text-sm font-semibold text-panel-foreground transition hover:bg-panel/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         Try again
       </button>
@@ -718,8 +718,8 @@ function LearnerDashboard({ data }: { data: LearnerDashboardData }) {
             </div>
           ) : (
             <div className="mt-6 space-y-4">
-              <div className="rounded-3xl bg-foreground p-5 text-background shadow-soft">
-                <p className="text-sm font-semibold text-primary-foreground/80">
+              <div className="rounded-3xl border border-panel-border bg-panel p-5 text-panel-foreground shadow-soft">
+                <p className="text-sm font-semibold text-panel-muted-foreground">
                   {latestAssessment.title}
                 </p>
                 <p className="mt-4 text-5xl font-semibold">

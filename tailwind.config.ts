@@ -93,6 +93,12 @@ const config: Config = {
           border: token("sidebar-border"),
           accent: token("sidebar-accent"),
         },
+        panel: {
+          DEFAULT: token("panel"),
+          foreground: token("panel-foreground"),
+          "muted-foreground": token("panel-muted-foreground"),
+          border: token("panel-border"),
+        },
         scrim: token("scrim"),
       },
       /* Type scale: 12 / 14 / 16 / 18 / 20 / 24 / 30 / 36 with paired leading. */

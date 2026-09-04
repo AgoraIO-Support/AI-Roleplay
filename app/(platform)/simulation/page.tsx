@@ -30,7 +30,7 @@ export default function SimulationPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-foreground text-background">
+        <Card className="border-panel-border bg-panel text-panel-foreground">
           <CardHeader>
             <CardDescription className="text-subtle-foreground">
               Access model
