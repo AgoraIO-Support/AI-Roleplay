@@ -15,7 +15,10 @@ import {
   attemptNumberForAssessment,
   learnerName,
 } from "@/src/lib/roleplays/courseAnalytics";
-import { fetchRolePlayConfig, persistRolePlayConfig } from "@/src/lib/roleplays/storage";
+import {
+  fetchRolePlayConfig,
+  persistRolePlayConfig,
+} from "@/src/lib/roleplays/storage";
 import type { RolePlayConfig } from "@/src/lib/roleplays/types";
 
 function formatDate(value?: string) {
@@ -59,10 +62,16 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
     deadlineDateTimeUtc: "",
     deadlineTimezone: "UTC",
   });
-  const [attemptOverrideDrafts, setAttemptOverrideDrafts] = useState<Record<string, number>>({});
-  const [attemptStatuses, setAttemptStatuses] = useState<Record<string, RolePlayAttemptStatus>>({});
-  const [attemptOverrideSearchText, setAttemptOverrideSearchText] = useState("");
-  const [attemptOverrideSearchQuery, setAttemptOverrideSearchQuery] = useState("");
+  const [attemptOverrideDrafts, setAttemptOverrideDrafts] = useState<
+    Record<string, number>
+  >({});
+  const [attemptStatuses, setAttemptStatuses] = useState<
+    Record<string, RolePlayAttemptStatus>
+  >({});
+  const [attemptOverrideSearchText, setAttemptOverrideSearchText] =
+    useState("");
+  const [attemptOverrideSearchQuery, setAttemptOverrideSearchQuery] =
+    useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
@@ -70,12 +79,13 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function loadData() {
-    const [sessionResponse, config, assessmentsResponse, usersResponse] = await Promise.all([
-      fetch("/api/auth/session", { cache: "no-store" }),
-      fetchRolePlayConfig(rolePlayId),
-      fetch("/api/assessments", { cache: "no-store" }),
-      fetch("/api/users/trainees", { cache: "no-store" }),
-    ]);
+    const [sessionResponse, config, assessmentsResponse, usersResponse] =
+      await Promise.all([
+        fetch("/api/auth/session", { cache: "no-store" }),
+        fetchRolePlayConfig(rolePlayId),
+        fetch("/api/assessments", { cache: "no-store" }),
+        fetch("/api/users/trainees", { cache: "no-store" }),
+      ]);
 
     const sessionPayload = sessionResponse.ok
       ? ((await sessionResponse.json()) as { user?: AuthSessionUser })
@@ -102,21 +112,32 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
     });
 
     if (assessmentsResponse.ok) {
-      const payload = (await assessmentsResponse.json()) as { assessments?: SavedFinalAssessment[] };
-      setAssessments(Array.isArray(payload.assessments) ? payload.assessments : []);
+      const payload = (await assessmentsResponse.json()) as {
+        assessments?: SavedFinalAssessment[];
+      };
+      setAssessments(
+        Array.isArray(payload.assessments) ? payload.assessments : [],
+      );
     }
 
     if (usersResponse.ok) {
-      const payload = (await usersResponse.json()) as { users?: SafeAuthUser[] };
+      const payload = (await usersResponse.json()) as {
+        users?: SafeAuthUser[];
+      };
       const nextUsers = Array.isArray(payload.users) ? payload.users : [];
       setUsers(nextUsers);
       await loadAttemptStatuses(config, nextUsers);
     }
   }
 
-  async function loadAttemptStatuses(config: RolePlayConfig, nextUsers: SafeAuthUser[]) {
+  async function loadAttemptStatuses(
+    config: RolePlayConfig,
+    nextUsers: SafeAuthUser[],
+  ) {
     const assignedIds = config.settings.assignedTraineeIds ?? [];
-    const assignedLearners = nextUsers.filter((candidate) => assignedIds.includes(candidate.id));
+    const assignedLearners = nextUsers.filter((candidate) =>
+      assignedIds.includes(candidate.id),
+    );
 
     const entries = await Promise.all(
       assignedLearners.map(async (learner) => {
@@ -133,7 +154,9 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
           const payload = (await response.json()) as {
             attemptStatus?: RolePlayAttemptStatus | null;
           };
-          return payload.attemptStatus ? ([learner.id, payload.attemptStatus] as const) : null;
+          return payload.attemptStatus
+            ? ([learner.id, payload.attemptStatus] as const)
+            : null;
         } catch {
           return null;
         }
@@ -141,7 +164,8 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
     );
 
     const nextStatuses = entries.filter(
-      (entry): entry is readonly [string, RolePlayAttemptStatus] => Boolean(entry),
+      (entry): entry is readonly [string, RolePlayAttemptStatus] =>
+        Boolean(entry),
     );
     setAttemptStatuses(Object.fromEntries(nextStatuses));
   }
@@ -149,13 +173,18 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
   useEffect(() => {
     void loadData()
       .catch((error) => {
-        setErrorMessage(error instanceof Error ? error.message : "Unable to load course attempts.");
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Unable to load course attempts.",
+        );
       })
       .finally(() => setIsLoading(false));
   }, [rolePlayId]);
 
   const courseAssessments = useMemo(
-    () => assessments.filter((assessment) => assessment.scenarioId === rolePlayId),
+    () =>
+      assessments.filter((assessment) => assessment.scenarioId === rolePlayId),
     [assessments, rolePlayId],
   );
 
@@ -176,7 +205,10 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
     );
   }, [assignedUsers, attemptOverrideSearchQuery]);
 
-  async function saveRoleplaySettings(settings: Partial<RolePlayConfig["settings"]>, successMessage: string) {
+  async function saveRoleplaySettings(
+    settings: Partial<RolePlayConfig["settings"]>,
+    successMessage: string,
+  ) {
     if (!roleplay) return;
 
     setIsSaving(true);
@@ -194,7 +226,11 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
       setMessage(successMessage);
       await loadData();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Unable to update course settings.");
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to update course settings.",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -213,7 +249,10 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
   async function saveAttemptOverride(userId: string) {
     if (!roleplay) return;
 
-    const maxAttempts = Math.max(1, Math.floor(attemptOverrideDrafts[userId] ?? 0));
+    const maxAttempts = Math.max(
+      1,
+      Math.floor(attemptOverrideDrafts[userId] ?? 0),
+    );
     const nextOverrides = {
       ...(roleplay.settings.attemptOverrides ?? {}),
       [userId]: {
@@ -264,7 +303,9 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? `Unable to reset attempts. HTTP ${response.status}.`);
+        throw new Error(
+          payload.error ?? `Unable to reset attempts. HTTP ${response.status}.`,
+        );
       }
 
       if (payload.attemptStatus) {
@@ -276,29 +317,46 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
 
       setMessage(`Attempts used reset for ${learnerLabel}.`);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Unable to reset attempts used.");
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to reset attempts used.",
+      );
     } finally {
       setIsSaving(false);
     }
   }
 
   if (isLoading) {
-    return <div className="rounded-3xl border border-slate-200 bg-white p-8 text-sm text-slate-500">Loading attempts...</div>;
+    return (
+      <div className="rounded-3xl border border-border bg-surface p-8 text-sm text-muted-foreground">
+        Loading attempts...
+      </div>
+    );
   }
 
   if (accessDenied) {
     return (
-      <div className="rounded-3xl border border-amber-200 bg-amber-50 p-8">
-        <p className="text-xs font-bold uppercase tracking-[0.24em] text-amber-700">Owner-only access</p>
-        <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-950">Attempts are available only to the course owner or root admin.</h1>
-        <Link href="/course-builder" className="mt-5 inline-flex rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-white">Back to Managed Courses</Link>
+      <div className="rounded-3xl border border-warning/30 bg-warning-subtle p-8">
+        <p className="text-xs font-bold uppercase tracking-[0.24em] text-warning-subtle-foreground">
+          Owner-only access
+        </p>
+        <h1 className="mt-3 text-3xl font-bold tracking-tight text-foreground">
+          Attempts are available only to the course owner or root admin.
+        </h1>
+        <Link
+          href="/course-builder"
+          className="mt-5 inline-flex rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground"
+        >
+          Back to Managed Courses
+        </Link>
       </div>
     );
   }
 
   if (errorMessage || !roleplay) {
     return (
-      <div className="rounded-3xl border border-rose-200 bg-rose-50 p-8 text-sm font-semibold text-rose-700">
+      <div className="rounded-3xl border border-danger/30 bg-danger-subtle p-8 text-sm font-semibold text-danger-subtle-foreground">
         {errorMessage ?? "Unable to load course attempts."}
       </div>
     );
@@ -308,16 +366,33 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
     <section className="space-y-6">
       <header className="flex flex-col gap-4 px-1 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.28em] text-slate-500">Course Attempts</p>
-          <h1 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">{roleplay.settings.meetingTitle}</h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-            Review learner attempt numbers, scores, coach feedback, deadlines, and retake allowances.
+          <p className="text-xs font-bold uppercase tracking-[0.28em] text-muted-foreground">
+            Course Attempts
           </p>
-          <p className="mt-2 text-xs font-semibold text-slate-500">Current deadline: {formatDate(roleplay.settings.deadlineAt)}</p>
+          <h1 className="mt-3 text-4xl font-bold tracking-tight text-foreground">
+            {roleplay.settings.meetingTitle}
+          </h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
+            Review learner attempt numbers, scores, coach feedback, deadlines,
+            and retake allowances.
+          </p>
+          <p className="mt-2 text-xs font-semibold text-muted-foreground">
+            Current deadline: {formatDate(roleplay.settings.deadlineAt)}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href={`/course-builder/${rolePlayId}/analytics`} className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-50">View Analytics</Link>
-          <Link href="/course-builder" className="rounded-2xl bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700">Back to Courses</Link>
+          <Link
+            href={`/course-builder/${rolePlayId}/analytics`}
+            className="inline-flex items-center justify-center rounded-2xl border border-border bg-surface min-h-control px-4 py-2 text-sm font-bold text-muted-foreground transition hover:bg-surface-sunken focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            View Analytics
+          </Link>
+          <Link
+            href="/course-builder"
+            className="inline-flex items-center justify-center rounded-2xl bg-primary min-h-control px-4 py-2 text-sm font-bold text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            Back to Courses
+          </Link>
         </div>
       </header>
 
@@ -325,73 +400,91 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
         <div
           className={`rounded-2xl border p-4 text-sm font-semibold ${
             errorMessage
-              ? "border-rose-200 bg-rose-50 text-rose-700"
-              : "border-emerald-200 bg-emerald-50 text-emerald-700"
+              ? "border-danger/30 bg-danger-subtle text-danger-subtle-foreground"
+              : "border-success/30 bg-success-subtle text-success-subtle-foreground"
           }`}
         >
           {errorMessage ?? message}
         </div>
       )}
 
-      <section className="grid gap-4 rounded-[2rem] border border-blue-100 bg-blue-50/50 p-5 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+      <section className="grid gap-4 rounded-[2rem] border border-primary/20 bg-primary-subtle/50 p-5 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
         <label className="space-y-2">
-          <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Deadline date/time (UTC)</span>
+          <span className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
+            Deadline date/time (UTC)
+          </span>
           <input
             type="datetime-local"
             value={deadlineDraft.deadlineDateTimeUtc}
             onChange={(event) =>
-              setDeadlineDraft((current) => ({ ...current, deadlineDateTimeUtc: event.target.value }))
+              setDeadlineDraft((current) => ({
+                ...current,
+                deadlineDateTimeUtc: event.target.value,
+              }))
             }
-            className="w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-blue-100"
+            className="w-full rounded-2xl border border-primary/20 bg-surface px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-ring/30"
           />
         </label>
         <label className="space-y-2">
-          <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Timezone label</span>
+          <span className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
+            Timezone label
+          </span>
           <input
             value={deadlineDraft.deadlineTimezone}
             onChange={(event) =>
-              setDeadlineDraft((current) => ({ ...current, deadlineTimezone: event.target.value }))
+              setDeadlineDraft((current) => ({
+                ...current,
+                deadlineTimezone: event.target.value,
+              }))
             }
-            className="w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-blue-100"
+            className="w-full rounded-2xl border border-primary/20 bg-surface px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-ring/30"
           />
         </label>
         <button
           type="button"
           onClick={() => void saveDeadline()}
           disabled={isSaving}
-          className="rounded-2xl bg-primary px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center justify-center rounded-2xl bg-primary min-h-control px-4 py-2.5 text-sm font-bold text-primary-foreground shadow-raised transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           Save Deadline
         </button>
       </section>
 
-      <section className="rounded-[2rem] border border-amber-100 bg-amber-50 p-5 shadow-sm">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-700">Attempt Overrides</p>
-        <p className="mt-2 text-sm text-amber-900">
-          Increase a learner's max attempts if they missed the deadline or need one more retake. Default is {maxTraineeRolePlayAttempts} attempts.
+      <section className="rounded-[2rem] border border-warning/30 bg-warning-subtle p-5 shadow-sm">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-warning-subtle-foreground">
+          Attempt Overrides
+        </p>
+        <p className="mt-2 text-sm text-warning-subtle-foreground">
+          Increase a learner's max attempts if they missed the deadline or need
+          one more retake. Default is {maxTraineeRolePlayAttempts} attempts.
         </p>
         {assignedUsers.length === 0 ? (
-          <div className="mt-4 rounded-2xl border border-dashed border-amber-200 bg-white/70 p-5 text-sm text-amber-900">
-            No assigned learners yet. Add learners in Edit Course before setting per-learner attempt overrides.
+          <div className="mt-4 rounded-2xl border border-dashed border-warning/30 bg-surface/70 p-5 text-sm text-warning-subtle-foreground">
+            No assigned learners yet. Add learners in Edit Course before setting
+            per-learner attempt overrides.
           </div>
         ) : (
           <>
-            <div className="mt-4 flex flex-col gap-2 rounded-2xl bg-white/70 p-3 sm:flex-row">
+            <div className="mt-4 flex flex-col gap-2 rounded-2xl bg-surface/70 p-3 sm:flex-row">
               <input
                 value={attemptOverrideSearchText}
-                onChange={(event) => setAttemptOverrideSearchText(event.target.value)}
+                onChange={(event) =>
+                  setAttemptOverrideSearchText(event.target.value)
+                }
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     setAttemptOverrideSearchQuery(attemptOverrideSearchText);
                   }
                 }}
                 placeholder="Search learner name or email"
-                className="min-w-0 flex-1 rounded-xl border border-amber-100 bg-white px-3 py-2 text-sm outline-none focus:border-amber-300"
+                className="min-w-0 flex-1 rounded-xl border border-warning/30 bg-surface px-3 py-2 text-sm outline-none focus:border-warning"
               />
               <button
                 type="button"
-                onClick={() => setAttemptOverrideSearchQuery(attemptOverrideSearchText)}
-                className="rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-white transition hover:bg-amber-600"
+                onClick={() =>
+                  setAttemptOverrideSearchQuery(attemptOverrideSearchText)
+                }
+                className="inline-flex items-center justify-center rounded-xl bg-warning min-h-control px-4 py-2 text-xs font-bold text-warning-foreground transition hover:bg-warning/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 Search
               </button>
@@ -402,83 +495,103 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
                     setAttemptOverrideSearchText("");
                     setAttemptOverrideSearchQuery("");
                   }}
-                  className="rounded-xl border border-amber-200 bg-white px-4 py-2 text-xs font-bold text-amber-700 transition hover:bg-amber-50"
+                  className="inline-flex items-center justify-center rounded-xl border border-warning/30 bg-surface min-h-control px-4 py-2 text-xs font-bold text-warning-subtle-foreground transition hover:bg-warning-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   Clear
                 </button>
               )}
             </div>
             {filteredAssignedUsers.length === 0 ? (
-              <div className="mt-4 rounded-2xl border border-dashed border-amber-200 bg-white/70 p-5 text-sm text-amber-900">
+              <div className="mt-4 rounded-2xl border border-dashed border-warning/30 bg-surface/70 p-5 text-sm text-warning-subtle-foreground">
                 No assigned learners match that search.
               </div>
             ) : (
               <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {filteredAssignedUsers.map((learner) => {
-              const override = roleplay.settings.attemptOverrides?.[learner.id];
-              const attemptStatus = attemptStatuses[learner.id];
-              const learnerAttempts = courseAssessments.filter(
-                (assessment) =>
-                  assessment.learnerId === learner.id ||
-                  (!assessment.learnerId && assessment.learnerEmail === learner.email),
-              ).length;
-              const attemptsUsed = attemptStatus?.completedAttempts ?? learnerAttempts;
-              const maxAttempts =
-                attemptStatus?.maxAttempts ?? override?.maxAttempts ?? maxTraineeRolePlayAttempts;
-              return (
-                <div key={learner.id} className="rounded-2xl bg-white p-4 shadow-sm">
-                  <p className="font-bold text-slate-950">{learner.name}</p>
-                  <p className="text-xs text-slate-500">{learner.email}</p>
-                  <p className="mt-2 text-xs font-semibold text-slate-500">
-                    Attempts used: {attemptsUsed} / {maxAttempts}
-                  </p>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <input
-                      type="number"
-                      min={1}
-                      value={attemptOverrideDrafts[learner.id] ?? override?.maxAttempts ?? maxTraineeRolePlayAttempts}
-                      onChange={(event) =>
-                        setAttemptOverrideDrafts((current) => ({
-                          ...current,
-                          [learner.id]: Number(event.target.value),
-                        }))
-                      }
-                      className="w-24 rounded-xl border border-amber-100 px-3 py-2 text-sm outline-none focus:border-amber-300"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void saveAttemptOverride(learner.id)}
-                      disabled={isSaving}
-                      className="rounded-xl bg-amber-500 px-3 py-2 text-xs font-bold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                {filteredAssignedUsers.map((learner) => {
+                  const override =
+                    roleplay.settings.attemptOverrides?.[learner.id];
+                  const attemptStatus = attemptStatuses[learner.id];
+                  const learnerAttempts = courseAssessments.filter(
+                    (assessment) =>
+                      assessment.learnerId === learner.id ||
+                      (!assessment.learnerId &&
+                        assessment.learnerEmail === learner.email),
+                  ).length;
+                  const attemptsUsed =
+                    attemptStatus?.completedAttempts ?? learnerAttempts;
+                  const maxAttempts =
+                    attemptStatus?.maxAttempts ??
+                    override?.maxAttempts ??
+                    maxTraineeRolePlayAttempts;
+                  return (
+                    <div
+                      key={learner.id}
+                      className="rounded-2xl bg-surface p-4 shadow-sm"
                     >
-                      Save max attempts
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void resetAttemptsUsed(learner.id)}
-                      disabled={isSaving}
-                      className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Reset attempts used
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                      <p className="font-bold text-foreground">
+                        {learner.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {learner.email}
+                      </p>
+                      <p className="mt-2 text-xs font-semibold text-muted-foreground">
+                        Attempts used: {attemptsUsed} / {maxAttempts}
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <input
+                          type="number"
+                          min={1}
+                          value={
+                            attemptOverrideDrafts[learner.id] ??
+                            override?.maxAttempts ??
+                            maxTraineeRolePlayAttempts
+                          }
+                          onChange={(event) =>
+                            setAttemptOverrideDrafts((current) => ({
+                              ...current,
+                              [learner.id]: Number(event.target.value),
+                            }))
+                          }
+                          className="w-24 rounded-xl border border-warning/30 px-3 py-2 text-sm outline-none focus:border-warning"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void saveAttemptOverride(learner.id)}
+                          disabled={isSaving}
+                          className="inline-flex items-center justify-center rounded-xl bg-warning min-h-control-sm px-3 py-2 text-xs font-bold text-warning-foreground transition hover:bg-warning/90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        >
+                          Save max attempts
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void resetAttemptsUsed(learner.id)}
+                          disabled={isSaving}
+                          className="inline-flex items-center justify-center rounded-xl border border-danger/30 bg-surface min-h-control-sm px-3 py-2 text-xs font-bold text-danger-subtle-foreground transition hover:bg-danger-subtle disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        >
+                          Reset attempts used
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </>
         )}
       </section>
 
-      <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Exam Attempts</p>
-          <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">Attempt History</h2>
+      <section className="overflow-hidden rounded-[2rem] border border-border bg-surface shadow-sm">
+        <div className="border-b border-border px-5 py-4">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
+            Exam Attempts
+          </p>
+          <h2 className="mt-2 text-2xl font-bold tracking-tight text-foreground">
+            Attempt History
+          </h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[980px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-[0.16em] text-slate-400">
+            <thead className="bg-surface-sunken text-xs uppercase tracking-[0.16em] text-subtle-foreground">
               <tr>
                 <th className="px-4 py-3">User</th>
                 <th className="px-4 py-3">Attempt</th>
@@ -494,32 +607,63 @@ export function CourseAttemptsPage({ rolePlayId }: { rolePlayId: string }) {
             <tbody>
               {courseAssessments.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
+                  <td
+                    colSpan={9}
+                    className="px-4 py-8 text-center text-muted-foreground"
+                  >
                     No learners have completed this course exam yet.
                   </td>
                 </tr>
               ) : (
                 courseAssessments.map((assessment) => (
-                  <tr key={assessment.id} className="border-t border-slate-100 text-slate-700">
-                    <td className="px-4 py-3 font-bold text-slate-950">{learnerName(assessment, users)}</td>
-                    <td className="px-4 py-3 font-bold">#{attemptNumberForAssessment(courseAssessments, assessment)}</td>
-                    <td className="px-4 py-3">{assessment.learnerEmail ?? "Not recorded"}</td>
-                    <td className="px-4 py-3 font-bold">{assessment.overallScore}%</td>
-                    <td className="px-4 py-3">{assessment.outcome === "passed" ? "Passed" : "Needs Review"}</td>
-                    <td className="px-4 py-3">
-                      <p className="line-clamp-2 max-w-sm text-xs leading-5 text-slate-600">{assessment.summary}</p>
+                  <tr
+                    key={assessment.id}
+                    className="border-t border-border text-muted-foreground"
+                  >
+                    <td className="px-4 py-3 font-bold text-foreground">
+                      {learnerName(assessment, users)}
                     </td>
-                    <td className="px-4 py-3">{formatDate(assessment.createdAt)}</td>
+                    <td className="px-4 py-3 font-bold">
+                      #
+                      {attemptNumberForAssessment(
+                        courseAssessments,
+                        assessment,
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {assessment.learnerEmail ?? "Not recorded"}
+                    </td>
+                    <td className="px-4 py-3 font-bold">
+                      {assessment.overallScore}%
+                    </td>
+                    <td className="px-4 py-3">
+                      {assessment.outcome === "passed"
+                        ? "Passed"
+                        : "Needs Review"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="line-clamp-2 max-w-sm text-xs leading-5 text-muted-foreground">
+                        {assessment.summary}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3">
+                      {formatDate(assessment.createdAt)}
+                    </td>
                     <td className="px-4 py-3">
                       <a
-                        className="font-bold text-primary hover:text-blue-700"
+                        className="font-bold text-primary hover:text-primary"
                         href={`/api/assessments/${assessment.id}/transcript`}
                       >
                         Download
                       </a>
                     </td>
                     <td className="px-4 py-3">
-                      <Link className="font-bold text-primary hover:text-blue-700" href={`/assessment/${assessment.id}`}>Open</Link>
+                      <Link
+                        className="font-bold text-primary hover:text-primary"
+                        href={`/assessment/${assessment.id}`}
+                      >
+                        Open
+                      </Link>
                     </td>
                   </tr>
                 ))

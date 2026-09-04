@@ -38,11 +38,19 @@ function formatDate(value?: string) {
   }).format(new Date(value));
 }
 
-function MetricCard({ label, value }: { label: string; value: string | number }) {
+function MetricCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
   return (
-    <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
-      <p className="text-sm font-medium text-slate-500">{label}</p>
-      <p className="mt-4 text-3xl font-bold tracking-tight text-slate-950">{value}</p>
+    <div className="rounded-[1.75rem] border border-border bg-surface p-6 shadow-sm">
+      <p className="text-sm font-medium text-muted-foreground">{label}</p>
+      <p className="mt-4 text-3xl font-bold tracking-tight text-foreground">
+        {value}
+      </p>
     </div>
   );
 }
@@ -62,12 +70,13 @@ export function CourseAnalyticsPage({ rolePlayId }: { rolePlayId: string }) {
       setAccessDenied(false);
 
       try {
-        const [sessionResponse, config, assessmentsResponse, usersResponse] = await Promise.all([
-          fetch("/api/auth/session", { cache: "no-store" }),
-          fetchRolePlayConfig(rolePlayId),
-          fetch("/api/assessments", { cache: "no-store" }),
-          fetch("/api/users/trainees", { cache: "no-store" }),
-        ]);
+        const [sessionResponse, config, assessmentsResponse, usersResponse] =
+          await Promise.all([
+            fetch("/api/auth/session", { cache: "no-store" }),
+            fetchRolePlayConfig(rolePlayId),
+            fetch("/api/assessments", { cache: "no-store" }),
+            fetch("/api/users/trainees", { cache: "no-store" }),
+          ]);
 
         const sessionPayload = sessionResponse.ok
           ? ((await sessionResponse.json()) as { user?: AuthSessionUser })
@@ -89,16 +98,26 @@ export function CourseAnalyticsPage({ rolePlayId }: { rolePlayId: string }) {
         setRoleplay(config);
 
         if (assessmentsResponse.ok) {
-          const payload = (await assessmentsResponse.json()) as { assessments?: SavedFinalAssessment[] };
-          setAssessments(Array.isArray(payload.assessments) ? payload.assessments : []);
+          const payload = (await assessmentsResponse.json()) as {
+            assessments?: SavedFinalAssessment[];
+          };
+          setAssessments(
+            Array.isArray(payload.assessments) ? payload.assessments : [],
+          );
         }
 
         if (usersResponse.ok) {
-          const payload = (await usersResponse.json()) as { users?: SafeAuthUser[] };
+          const payload = (await usersResponse.json()) as {
+            users?: SafeAuthUser[];
+          };
           setUsers(Array.isArray(payload.users) ? payload.users : []);
         }
       } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : "Unable to load course analytics.");
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Unable to load course analytics.",
+        );
       } finally {
         setIsLoading(false);
       }
@@ -106,28 +125,45 @@ export function CourseAnalyticsPage({ rolePlayId }: { rolePlayId: string }) {
   }, [rolePlayId]);
 
   const courseAssessments = useMemo(
-    () => assessments.filter((assessment) => assessment.scenarioId === rolePlayId),
+    () =>
+      assessments.filter((assessment) => assessment.scenarioId === rolePlayId),
     [assessments, rolePlayId],
   );
-  const analytics = useMemo(() => analyticsForCourse(courseAssessments), [courseAssessments]);
+  const analytics = useMemo(
+    () => analyticsForCourse(courseAssessments),
+    [courseAssessments],
+  );
 
   if (isLoading) {
-    return <div className="rounded-3xl border border-slate-200 bg-white p-8 text-sm text-slate-500">Loading analytics...</div>;
+    return (
+      <div className="rounded-3xl border border-border bg-surface p-8 text-sm text-muted-foreground">
+        Loading analytics...
+      </div>
+    );
   }
 
   if (accessDenied) {
     return (
-      <div className="rounded-3xl border border-amber-200 bg-amber-50 p-8">
-        <p className="text-xs font-bold uppercase tracking-[0.24em] text-amber-700">Owner-only access</p>
-        <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-950">Analytics are available only to the course owner or root admin.</h1>
-        <Link href="/course-builder" className="mt-5 inline-flex rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-white">Back to Managed Courses</Link>
+      <div className="rounded-3xl border border-warning/30 bg-warning-subtle p-8">
+        <p className="text-xs font-bold uppercase tracking-[0.24em] text-warning-subtle-foreground">
+          Owner-only access
+        </p>
+        <h1 className="mt-3 text-3xl font-bold tracking-tight text-foreground">
+          Analytics are available only to the course owner or root admin.
+        </h1>
+        <Link
+          href="/course-builder"
+          className="mt-5 inline-flex rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground"
+        >
+          Back to Managed Courses
+        </Link>
       </div>
     );
   }
 
   if (errorMessage || !roleplay) {
     return (
-      <div className="rounded-3xl border border-rose-200 bg-rose-50 p-8 text-sm font-semibold text-rose-700">
+      <div className="rounded-3xl border border-danger/30 bg-danger-subtle p-8 text-sm font-semibold text-danger-subtle-foreground">
         {errorMessage ?? "Unable to load course analytics."}
       </div>
     );
@@ -137,35 +173,75 @@ export function CourseAnalyticsPage({ rolePlayId }: { rolePlayId: string }) {
     <section className="space-y-6">
       <header className="flex flex-col gap-4 px-1 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.28em] text-slate-500">Course Analytics</p>
-          <h1 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">{roleplay.settings.meetingTitle}</h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-            Performance summary for attempts completed against this roleplay course.
+          <p className="text-xs font-bold uppercase tracking-[0.28em] text-muted-foreground">
+            Course Analytics
           </p>
-          <p className="mt-2 text-xs font-semibold text-slate-500">Deadline: {formatDate(roleplay.settings.deadlineAt)}</p>
+          <h1 className="mt-3 text-4xl font-bold tracking-tight text-foreground">
+            {roleplay.settings.meetingTitle}
+          </h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
+            Performance summary for attempts completed against this roleplay
+            course.
+          </p>
+          <p className="mt-2 text-xs font-semibold text-muted-foreground">
+            Deadline: {formatDate(roleplay.settings.deadlineAt)}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href={`/course-builder/${rolePlayId}/attempts`} className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-50">View Attempts</Link>
-          <Link href="/course-builder" className="rounded-2xl bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700">Back to Courses</Link>
+          <Link
+            href={`/course-builder/${rolePlayId}/attempts`}
+            className="inline-flex items-center justify-center rounded-2xl border border-border bg-surface min-h-control px-4 py-2 text-sm font-bold text-muted-foreground transition hover:bg-surface-sunken focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            View Attempts
+          </Link>
+          <Link
+            href="/course-builder"
+            className="inline-flex items-center justify-center rounded-2xl bg-primary min-h-control px-4 py-2 text-sm font-bold text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            Back to Courses
+          </Link>
         </div>
       </header>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <MetricCard label="Total Attempts" value={analytics.totalAttempts} />
-        <MetricCard label="Pass Rate" value={formatPercent(analytics.passRate)} />
-        <MetricCard label="Average Score" value={formatPercent(analytics.averageScore)} />
-        <MetricCard label="Avg Completion" value={formatDuration(analytics.averageCompletionTime)} />
-        <MetricCard label="Top Score" value={analytics.topPerformers[0] ? `${analytics.topPerformers[0].overallScore}%` : "N/A"} />
+        <MetricCard
+          label="Pass Rate"
+          value={formatPercent(analytics.passRate)}
+        />
+        <MetricCard
+          label="Average Score"
+          value={formatPercent(analytics.averageScore)}
+        />
+        <MetricCard
+          label="Avg Completion"
+          value={formatDuration(analytics.averageCompletionTime)}
+        />
+        <MetricCard
+          label="Top Score"
+          value={
+            analytics.topPerformers[0]
+              ? `${analytics.topPerformers[0].overallScore}%`
+              : "N/A"
+          }
+        />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[1fr_0.9fr]">
-        <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Score Summary</p>
+        <section className="rounded-[2rem] border border-border bg-surface p-6 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
+            Score Summary
+          </p>
           <div className="mt-5 space-y-4">
             {analytics.scoreRanges.map((range) => (
-              <div key={range.label} className="flex items-center gap-3 text-sm">
-                <span className="w-20 font-bold text-slate-700">{range.label}</span>
-                <div className="h-2 flex-1 rounded-full bg-slate-100">
+              <div
+                key={range.label}
+                className="flex items-center gap-3 text-sm"
+              >
+                <span className="w-20 font-bold text-muted-foreground">
+                  {range.label}
+                </span>
+                <div className="h-2 flex-1 rounded-full bg-muted">
                   <div
                     className="h-2 rounded-full bg-primary"
                     style={{
@@ -176,25 +252,40 @@ export function CourseAnalyticsPage({ rolePlayId }: { rolePlayId: string }) {
                     }}
                   />
                 </div>
-                <span className="w-8 text-right font-bold text-slate-600">{range.count}</span>
+                <span className="w-8 text-right font-bold text-muted-foreground">
+                  {range.count}
+                </span>
               </div>
             ))}
           </div>
         </section>
 
-        <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Top Performers</p>
+        <section className="rounded-[2rem] border border-border bg-surface p-6 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
+            Top Performers
+          </p>
           <div className="mt-5 space-y-3">
             {analytics.topPerformers.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">No completed attempts yet.</p>
+              <p className="rounded-2xl border border-dashed border-border bg-surface-sunken p-5 text-sm text-muted-foreground">
+                No completed attempts yet.
+              </p>
             ) : (
               analytics.topPerformers.map((assessment, index) => (
-                <div key={assessment.id} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
+                <div
+                  key={assessment.id}
+                  className="flex items-center justify-between rounded-2xl border border-border bg-surface-sunken px-4 py-3 text-sm"
+                >
                   <div>
-                    <p className="font-bold text-slate-950">#{index + 1} {learnerName(assessment, users)}</p>
-                    <p className="text-xs text-slate-500">{assessment.learnerEmail ?? "No email recorded"}</p>
+                    <p className="font-bold text-foreground">
+                      #{index + 1} {learnerName(assessment, users)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {assessment.learnerEmail ?? "No email recorded"}
+                    </p>
                   </div>
-                  <span className="font-bold text-primary">{assessment.overallScore}%</span>
+                  <span className="font-bold text-primary">
+                    {assessment.overallScore}%
+                  </span>
                 </div>
               ))
             )}

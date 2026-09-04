@@ -6,7 +6,13 @@ import { RoleGuard } from "@/components/auth/role-guard";
 export default function NewCourseBuilderRolePlayPage() {
   return (
     <RoleGuard allowedRoles={["root_admin", "course_admin"]}>
-      <Suspense fallback={<div className="text-sm text-slate-500">Loading role play builder...</div>}>
+      <Suspense
+        fallback={
+          <div className="text-sm text-muted-foreground">
+            Loading role play builder...
+          </div>
+        }
+      >
         <RolePlayBuilder embedded />
       </Suspense>
     </RoleGuard>

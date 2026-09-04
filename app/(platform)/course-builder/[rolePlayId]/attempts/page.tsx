@@ -12,7 +12,13 @@ export default async function CourseBuilderAttemptsRoute({
 
   return (
     <RoleGuard allowedRoles={["root_admin", "course_admin"]}>
-      <Suspense fallback={<div className="text-sm text-slate-500">Loading course attempts...</div>}>
+      <Suspense
+        fallback={
+          <div className="text-sm text-muted-foreground">
+            Loading course attempts...
+          </div>
+        }
+      >
         <CourseAttemptsPage rolePlayId={rolePlayId} />
       </Suspense>
     </RoleGuard>

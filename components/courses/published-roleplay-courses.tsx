@@ -57,16 +57,21 @@ export function PublishedRoleplayCourses({
         if (nextUser) {
           const visibleRoleplays = visibleRoleplaysForUser(
             nextUser,
-            (await fetchRolePlayConfigs()).filter((roleplay) => roleplay.status === "published"),
+            (await fetchRolePlayConfigs()).filter(
+              (roleplay) => roleplay.status === "published",
+            ),
           );
           setRoleplays(visibleRoleplays);
 
           if (nextUser.role === "trainee" || nextUser.role === "course_admin") {
             const attemptEntries = await Promise.all(
-              visibleRoleplays.map(async (roleplay) => [
-                roleplay.id,
-                await fetchRolePlayAttemptStatus(nextUser.id, roleplay.id),
-              ] as const),
+              visibleRoleplays.map(
+                async (roleplay) =>
+                  [
+                    roleplay.id,
+                    await fetchRolePlayAttemptStatus(nextUser.id, roleplay.id),
+                  ] as const,
+              ),
             );
             setAttemptsByRolePlayId(Object.fromEntries(attemptEntries));
           }
@@ -79,7 +84,7 @@ export function PublishedRoleplayCourses({
 
   if (isLoading) {
     return (
-      <section className="rounded-3xl border border-blue-100 bg-white p-6 text-sm text-slate-500 shadow-soft">
+      <section className="rounded-3xl border border-primary/20 bg-surface p-6 text-sm text-muted-foreground shadow-soft">
         Loading assigned roleplay courses...
       </section>
     );
@@ -91,12 +96,14 @@ export function PublishedRoleplayCourses({
     }
 
     return (
-      <section className="rounded-3xl border border-dashed border-blue-200 bg-white/90 p-8 text-center shadow-soft">
-        <p className="text-xs uppercase tracking-[0.24em] text-primary">Assigned Roleplays</p>
-        <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
+      <section className="rounded-3xl border border-dashed border-primary/20 bg-surface/90 p-8 text-center shadow-soft">
+        <p className="text-xs uppercase tracking-[0.24em] text-primary">
+          Assigned Roleplays
+        </p>
+        <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
           No assigned courses yet
         </h2>
-        <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-600">
+        <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">
           {user?.role === "trainee"
             ? "Ask a course admin to assign published roleplay courses to your learner account."
             : user?.role === "course_admin"
@@ -110,100 +117,106 @@ export function PublishedRoleplayCourses({
   return (
     <section className="space-y-4">
       <div>
-        <p className="text-xs uppercase tracking-[0.24em] text-primary">Assigned Roleplays</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
+        <p className="text-xs uppercase tracking-[0.24em] text-primary">
+          Assigned Roleplays
+        </p>
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
           AI Roleplay Courses You Can Access
         </h2>
       </div>
       <div className="grid gap-6 xl:grid-cols-3">
         {roleplays.map((roleplay) => {
-            const attemptStatus =
-              user?.role === "trainee" || user?.role === "course_admin"
-                ? attemptsByRolePlayId[roleplay.id]
-                : null;
-            const actionLabel =
-              attemptStatus?.locked
-                ? "Attempts Used"
-                : attemptStatus && attemptStatus.completedAttempts > 0
-                  ? "Retake Role Play"
-                  : "Start Role Play";
-            const deadlinePassed = attemptStatus?.deadlinePassed;
-            const deadlineLocked = attemptStatus?.deadlineLocked;
+          const attemptStatus =
+            user?.role === "trainee" || user?.role === "course_admin"
+              ? attemptsByRolePlayId[roleplay.id]
+              : null;
+          const actionLabel = attemptStatus?.locked
+            ? "Attempts Used"
+            : attemptStatus && attemptStatus.completedAttempts > 0
+              ? "Retake Role Play"
+              : "Start Role Play";
+          const deadlinePassed = attemptStatus?.deadlinePassed;
+          const deadlineLocked = attemptStatus?.deadlineLocked;
 
-            return (
-              <article
-                key={roleplay.id}
-                className="rounded-3xl border border-blue-100 bg-white p-5 shadow-soft"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-semibold text-slate-950">
-                      {roleplay.settings.meetingTitle}
-                    </h3>
-                    <p className="mt-1 text-sm font-medium text-blue-700">
-                      {roleplay.character.name} · {roleplay.character.role}
-                    </p>
-                  </div>
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
-                      attemptStatus?.locked
-                        ? "bg-slate-100 text-slate-600 ring-slate-200"
-                        : "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                    }`}
-                  >
-                    {deadlineLocked ? "Deadline Passed" : attemptStatus?.locked ? "Locked" : "Published"}
-                  </span>
+          return (
+            <article
+              key={roleplay.id}
+              className="rounded-3xl border border-primary/20 bg-surface p-5 shadow-soft"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground">
+                    {roleplay.settings.meetingTitle}
+                  </h3>
+                  <p className="mt-1 text-sm font-medium text-primary">
+                    {roleplay.character.name} · {roleplay.character.role}
+                  </p>
                 </div>
-                <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-600">
-                  {roleplay.plan.scenario}
-                </p>
-                <div
-                  className={`mt-4 rounded-2xl px-3 py-2 text-xs font-semibold ${
-                    deadlineLocked
-                      ? "bg-rose-50 text-rose-700 ring-1 ring-rose-100"
-                      : deadlinePassed
-                        ? "bg-amber-50 text-amber-700 ring-1 ring-amber-100"
-                        : "bg-slate-50 text-slate-600 ring-1 ring-slate-100"
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
+                    attemptStatus?.locked
+                      ? "bg-muted text-muted-foreground ring-border"
+                      : "bg-success-subtle text-success-subtle-foreground ring-success/30"
                   }`}
                 >
-                  Deadline:{" "}
-                  {formatDeadline(
-                    attemptStatus?.deadlineAt ?? roleplay.settings.deadlineAt,
-                    attemptStatus?.deadlineTimezone ?? roleplay.settings.deadlineTimezone,
-                  )}
-                </div>
-                <div className="mt-5 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  <span>{roleplay.settings.durationMinutes} min</span>
-                  <span>{roleplay.settings.learnerGoals.length} goals</span>
-                </div>
-                {attemptStatus && (
-                  <p className="mt-3 rounded-2xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
-                    {attemptStatus.locked
-                      ? attemptStatus.deadlineLocked
-                        ? "Deadline passed. Ask your course admin for another attempt."
-                        : "All attempts completed"
-                      : `${attemptStatus.remainingAttempts} of ${attemptStatus.maxAttempts} attempts remaining`}
-                  </p>
+                  {deadlineLocked
+                    ? "Deadline Passed"
+                    : attemptStatus?.locked
+                      ? "Locked"
+                      : "Published"}
+                </span>
+              </div>
+              <p className="mt-4 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                {roleplay.plan.scenario}
+              </p>
+              <div
+                className={`mt-4 rounded-2xl px-3 py-2 text-xs font-semibold ${
+                  deadlineLocked
+                    ? "bg-danger-subtle text-danger-subtle-foreground ring-1 ring-danger/30"
+                    : deadlinePassed
+                      ? "bg-warning-subtle text-warning-subtle-foreground ring-1 ring-warning/30"
+                      : "bg-surface-sunken text-muted-foreground ring-1 ring-border"
+                }`}
+              >
+                Deadline:{" "}
+                {formatDeadline(
+                  attemptStatus?.deadlineAt ?? roleplay.settings.deadlineAt,
+                  attemptStatus?.deadlineTimezone ??
+                    roleplay.settings.deadlineTimezone,
                 )}
-                {attemptStatus?.locked ? (
-                  <button
-                    type="button"
-                    disabled
-                    className="mt-5 inline-flex w-full cursor-not-allowed items-center justify-center rounded-2xl bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-500"
-                  >
-                    {actionLabel}
-                  </button>
-                ) : (
-                  <Link
-                    href={`/admin/roleplays/preview/${roleplay.id}/session`}
-                    className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700"
-                  >
-                    {actionLabel}
-                  </Link>
-                )}
-              </article>
-            );
-          })}
+              </div>
+              <div className="mt-5 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                <span>{roleplay.settings.durationMinutes} min</span>
+                <span>{roleplay.settings.learnerGoals.length} goals</span>
+              </div>
+              {attemptStatus && (
+                <p className="mt-3 rounded-2xl bg-primary-subtle px-3 py-2 text-xs font-semibold text-primary">
+                  {attemptStatus.locked
+                    ? attemptStatus.deadlineLocked
+                      ? "Deadline passed. Ask your course admin for another attempt."
+                      : "All attempts completed"
+                    : `${attemptStatus.remainingAttempts} of ${attemptStatus.maxAttempts} attempts remaining`}
+                </p>
+              )}
+              {attemptStatus?.locked ? (
+                <button
+                  type="button"
+                  disabled
+                  className="mt-5 inline-flex w-full cursor-not-allowed items-center justify-center rounded-2xl bg-border-strong px-4 py-2 text-sm font-semibold text-muted-foreground"
+                >
+                  {actionLabel}
+                </button>
+              ) : (
+                <Link
+                  href={`/admin/roleplays/preview/${roleplay.id}/session`}
+                  className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-primary min-h-control px-4 py-2 text-sm font-semibold text-primary-foreground shadow-raised transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                >
+                  {actionLabel}
+                </Link>
+              )}
+            </article>
+          );
+        })}
       </div>
     </section>
   );

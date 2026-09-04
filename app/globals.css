@@ -2,39 +2,222 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: 210 40% 98%;
-  --foreground: 222 47% 11%;
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --primary: 217 91% 60%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96%;
-  --secondary-foreground: 222 47% 11%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%;
-  --accent: 213 94% 93%;
-  --accent-foreground: 217 91% 32%;
-  --ring: 217 91% 60%;
+/*
+ * Semantic design tokens.
+ * Every surface/text/border colour in the app must resolve through one of
+ * these so light and dark stay in lockstep. Raw palette utilities
+ * (bg-slate-900, text-white, ...) are not allowed in feature components.
+ */
+
+@layer base {
+  :root {
+    color-scheme: light;
+
+    /* Surfaces — ascending elevation */
+    --background: 210 40% 98%;
+    --surface: 0 0% 100%;
+    --surface-raised: 0 0% 100%;
+    --surface-sunken: 210 40% 96%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Text — muted is darkened vs. stock slate-500 to clear 4.5:1 on white */
+    --foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 19% 38%;
+    --subtle-foreground: 215 16% 47%;
+
+    /* Brand */
+    --primary: 217 91% 48%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 217 91% 42%;
+    --primary-subtle: 214 95% 95%;
+    --primary-subtle-foreground: 217 91% 32%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 20%;
+    --accent: 213 94% 93%;
+    --accent-foreground: 217 91% 30%;
+
+    /* Status — each pairs a subtle surface with an AA-compliant text tone */
+    --success: 142 71% 30%;
+    --success-foreground: 0 0% 100%;
+    --success-subtle: 141 79% 93%;
+    --success-subtle-foreground: 142 72% 24%;
+
+    --warning: 32 95% 38%;
+    --warning-foreground: 0 0% 100%;
+    --warning-subtle: 48 96% 90%;
+    --warning-subtle-foreground: 26 90% 27%;
+
+    --danger: 0 72% 45%;
+    --danger-foreground: 0 0% 100%;
+    --danger-subtle: 0 93% 96%;
+    --danger-subtle-foreground: 0 70% 38%;
+
+    --info: 199 89% 40%;
+    --info-foreground: 0 0% 100%;
+    --info-subtle: 204 94% 94%;
+    --info-subtle-foreground: 201 90% 27%;
+
+    /* Lines & focus */
+    --border: 214 32% 89%;
+    --border-strong: 214 25% 80%;
+    --input: 214 32% 86%;
+    --ring: 217 91% 52%;
+
+    /* Sidebar is its own surface family so it can stay dark in light mode */
+    --sidebar: 222 47% 11%;
+    --sidebar-foreground: 210 40% 96%;
+    --sidebar-muted-foreground: 215 20% 72%;
+    --sidebar-border: 217 33% 22%;
+    --sidebar-accent: 217 33% 20%;
+
+    --scrim: 222 47% 8%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    --background: 222 47% 7%;
+    --surface: 222 40% 10%;
+    --surface-raised: 220 34% 13%;
+    --surface-sunken: 222 47% 6%;
+    --card: 222 40% 10%;
+    --card-foreground: 210 40% 96%;
+    --popover: 220 34% 13%;
+    --popover-foreground: 210 40% 96%;
+
+    --foreground: 210 40% 96%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 70%;
+    --subtle-foreground: 215 18% 62%;
+
+    /* Brand lightens and desaturates in dark rather than inverting */
+    --primary: 213 94% 68%;
+    --primary-foreground: 222 47% 9%;
+    --primary-hover: 213 94% 74%;
+    --primary-subtle: 217 45% 20%;
+    --primary-subtle-foreground: 213 94% 80%;
+
+    --secondary: 217 33% 18%;
+    --secondary-foreground: 210 40% 94%;
+    --accent: 217 40% 22%;
+    --accent-foreground: 213 94% 82%;
+
+    --success: 142 65% 45%;
+    --success-foreground: 150 60% 8%;
+    --success-subtle: 148 45% 16%;
+    --success-subtle-foreground: 141 74% 74%;
+
+    --warning: 38 92% 55%;
+    --warning-foreground: 30 70% 10%;
+    --warning-subtle: 32 45% 18%;
+    --warning-subtle-foreground: 45 93% 74%;
+
+    --danger: 0 79% 63%;
+    --danger-foreground: 0 60% 10%;
+    --danger-subtle: 0 40% 20%;
+    --danger-subtle-foreground: 0 92% 82%;
+
+    --info: 199 89% 60%;
+    --info-foreground: 200 70% 9%;
+    --info-subtle: 202 45% 20%;
+    --info-subtle-foreground: 199 92% 78%;
+
+    --border: 215 27% 22%;
+    --border-strong: 215 22% 32%;
+    --input: 215 27% 26%;
+    --ring: 213 94% 68%;
+
+    --sidebar: 222 47% 5%;
+    --sidebar-foreground: 210 40% 96%;
+    --sidebar-muted-foreground: 215 20% 68%;
+    --sidebar-border: 215 27% 18%;
+    --sidebar-accent: 217 33% 16%;
+
+    --scrim: 222 47% 3%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply min-h-dvh bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Numeric columns, scores and timers must not jitter as digits change. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.22);
+    color: hsl(var(--foreground));
+  }
+
+  /* Consistent focus treatment for anything keyboard-reachable. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
 }
 
-* {
-  @apply border-border;
+@layer components {
+  /*
+   * Page grounds. These replace hardcoded light gradients so the backdrop
+   * follows the theme instead of staying light behind dark cards.
+   */
+  .app-backdrop {
+    background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(circle at top left, hsl(var(--primary) / 0.16), transparent 34%),
+      linear-gradient(135deg, hsl(var(--background)), hsl(var(--surface-sunken)) 48%, hsl(var(--background)));
+  }
+
+  .app-backdrop-warm {
+    background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(circle at top left, hsl(var(--warning) / 0.18), transparent 34%),
+      linear-gradient(180deg, hsl(var(--warning-subtle) / 0.35), hsl(var(--background)));
+  }
+
+  .surface-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border-strong)) transparent;
+  }
+
+  .surface-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .surface-scrollbar::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border-strong));
+    border-radius: 9999px;
+  }
 }
 
-html {
-  scroll-behavior: smooth;
-}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 
-body {
-  @apply min-h-screen bg-background text-foreground antialiased;
-  background-image:
-    radial-gradient(circle at 20% 0%, rgba(59, 130, 246, 0.12), transparent 24%),
-    linear-gradient(180deg, #f8fbff 0%, #f5f7fb 100%);
-}
-
-::selection {
-  background: rgba(59, 130, 246, 0.18);
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

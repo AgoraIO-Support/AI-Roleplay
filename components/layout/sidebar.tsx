@@ -1,18 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { NavItem } from "@/lib/types";
 
 import { navigationItems } from "@/lib/navigation";
 import { canAccessNavItem } from "@/lib/authz";
 import { cn } from "@/lib/utils";
-import type { AppRole } from "@/lib/types";
+import type { AppRole, NavItem } from "@/lib/types";
 import {
   AiRolePlayIcon,
   AssessmentIcon,
   BuilderIcon,
+  ChevronRightIcon,
   ControlPanelIcon,
   CoursesIcon,
   DashboardIcon,
@@ -44,141 +44,204 @@ function iconFor(item: NavItem["icon"], className = "h-5 w-5") {
   }
 }
 
-export function Sidebar({ collapsed = false, role }: { collapsed?: boolean; role: AppRole }) {
+export function Sidebar({
+  collapsed = false,
+  role,
+  mobileOpen = false,
+  onCloseMobile,
+}: {
+  collapsed?: boolean;
+  role: AppRole;
+  mobileOpen?: boolean;
+  onCloseMobile?: () => void;
+}) {
   const pathname = usePathname();
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
-  const visibleNavigationItems = navigationItems.filter((item) => canAccessNavItem(role, item));
+  const [expandedSections, setExpandedSections] = useState<
+    Record<string, boolean>
+  >({});
+  const visibleNavigationItems = navigationItems.filter((item) =>
+    canAccessNavItem(role, item),
+  );
+
+  // The drawer is a modal surface on mobile: Escape closes it and the page
+  // behind it must not scroll while it is open.
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCloseMobile?.();
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileOpen, onCloseMobile]);
+
+  // Navigating always dismisses the drawer.
+  useEffect(() => {
+    onCloseMobile?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   return (
-    <aside
-      className={cn(
-        "sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-white/60 bg-slate-950 py-8 text-slate-100 transition-[width,padding] duration-300 lg:flex",
-        collapsed ? "w-24 px-4" : "w-72 px-6",
+    <>
+      {/* Scrim: opaque enough to isolate the drawer from page content. */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-drawer bg-scrim/60 backdrop-blur-sm lg:hidden"
+          onClick={onCloseMobile}
+          aria-hidden
+        />
       )}
-    >
-      <div
+
+      <aside
+        aria-label="Main navigation"
         className={cn(
-          "shrink-0 rounded-2xl bg-white/5",
-          collapsed ? "flex justify-center p-4" : "p-5",
+          "flex shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground",
+          "border-r border-sidebar-border",
+          // Mobile: off-canvas drawer. Desktop: sticky full-height rail.
+          "fixed inset-y-0 left-0 z-drawer w-[17rem] max-w-[85vw] transition-transform duration-slow ease-out",
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
+          "lg:sticky lg:top-0 lg:h-dvh lg:max-w-none lg:translate-x-0 lg:transition-[width,padding] lg:duration-slow",
+          collapsed ? "lg:w-[5.5rem] lg:px-3" : "lg:w-[17rem] lg:px-4",
+          "px-4 py-6",
         )}
       >
-        {collapsed ? (
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#0ea5e9,#22d3ee)] text-white shadow-lg shadow-cyan-500/20">
-            <AiRolePlayIcon className="h-6 w-6" />
-          </div>
-        ) : (
-          <div>
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#0ea5e9,#22d3ee)] text-white shadow-lg shadow-cyan-500/20">
-                <AiRolePlayIcon className="h-5 w-5" />
+        <div
+          className={cn("shrink-0", collapsed && "lg:flex lg:justify-center")}
+        >
+          <Link
+            href="/"
+            className={cn(
+              "flex items-center gap-3 rounded-xl p-2 transition-colors duration-fast",
+              "hover:bg-sidebar-accent focus-visible:ring-offset-sidebar",
+              collapsed && "lg:justify-center lg:p-2",
+            )}
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <AiRolePlayIcon className="h-5 w-5" />
+            </span>
+            <span className={cn("min-w-0", collapsed && "lg:hidden")}>
+              <span className="block truncate text-sm font-semibold leading-5">
+                AI RolePlay Academy
               </span>
-              <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
-                  Training & Assessment
-                </p>
-                <h1 className="mt-1 text-xl font-semibold leading-tight">AI RolePlay Academy</h1>
-              </div>
-            </div>
-            <p className="mt-3 text-sm text-slate-400">
-              Practice customer conversations, review AI feedback, and track readiness.
-            </p>
-          </div>
-        )}
-      </div>
+              <span className="block truncate text-xs text-sidebar-muted-foreground">
+                Training &amp; Assessment
+              </span>
+            </span>
+          </Link>
+        </div>
 
-      <nav
-        className={cn(
-          "mt-8 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]",
-          collapsed && "px-1",
-        )}
-      >
-        {visibleNavigationItems.map((item) => {
-          const visibleChildren = item.children?.filter((child) => canAccessNavItem(role, child)) ?? [];
-          const hasActiveChild = visibleChildren.some((child) =>
-            child.href === "/" ? pathname === child.href : pathname.startsWith(child.href),
-          );
-          const isActive =
-            item.href === "/" ? pathname === item.href : pathname.startsWith(item.href) || hasActiveChild;
-          const hasChildren = !collapsed && visibleChildren.length > 0;
-          const isExpanded = hasChildren && (expandedSections[item.href] ?? isActive);
+        <nav
+          aria-label="Sections"
+          className="surface-scrollbar mt-6 min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pr-1"
+        >
+          {visibleNavigationItems.map((item) => {
+            const visibleChildren =
+              item.children?.filter((child) => canAccessNavItem(role, child)) ??
+              [];
+            const hasActiveChild = visibleChildren.some((child) =>
+              child.href === "/"
+                ? pathname === child.href
+                : pathname.startsWith(child.href),
+            );
+            const isActive =
+              item.href === "/"
+                ? pathname === item.href
+                : pathname.startsWith(item.href) || hasActiveChild;
+            const hasChildren = !collapsed && visibleChildren.length > 0;
+            const isExpanded =
+              hasChildren && (expandedSections[item.href] ?? isActive);
 
-          return (
-            <div key={item.href}>
-              {hasChildren ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setExpandedSections((current) => ({
-                      ...current,
-                      [item.href]: !(current[item.href] ?? isActive),
-                    }))
-                  }
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium text-slate-300 transition-all",
-                    isActive
-                      ? "bg-primary text-white shadow-lg shadow-blue-500/20"
-                      : "hover:bg-white/10 hover:text-white",
-                  )}
-                  aria-expanded={isExpanded}
-                  aria-label={`${isExpanded ? "Collapse" : "Expand"} ${item.title}`}
-                >
-                  {iconFor(item.icon, "h-5 w-5 shrink-0")}
-                  <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                  <span
+            return (
+              <div key={item.href}>
+                {hasChildren ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedSections((current) => ({
+                        ...current,
+                        [item.href]: !(current[item.href] ?? isActive),
+                      }))
+                    }
+                    aria-expanded={isExpanded}
                     className={cn(
-                      "transition-transform duration-200",
-                      isExpanded ? "rotate-90" : "rotate-0",
+                      "flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium",
+                      "transition-colors duration-fast ease-out focus-visible:ring-offset-sidebar",
+                      isActive
+                        ? "bg-primary text-primary-foreground"
+                        : "text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
                     )}
                   >
-                    &gt;
-                  </span>
-                </button>
-              ) : (
-                <Link
-                  href={item.href}
-                  className={cn(
-                    "flex rounded-2xl py-3 text-sm font-medium text-slate-300 transition-all",
-                    collapsed ? "justify-center px-3" : "items-center gap-3 px-4",
-                    isActive
-                      ? "bg-primary text-white shadow-lg shadow-blue-500/20"
-                      : "hover:bg-white/10 hover:text-white",
-                  )}
-                  title={collapsed ? item.title : undefined}
-                  aria-label={item.title}
-                >
-                  {iconFor(item.icon, "h-5 w-5 shrink-0")}
-                  {!collapsed && <span>{item.title}</span>}
-                </Link>
-              )}
-              {hasChildren && isExpanded && (
-                <div className="ml-8 mt-2 space-y-1 border-l border-white/10 pl-3">
-                  {visibleChildren.map((child) => {
-                    const isChildActive =
-                      child.href === "/" ? pathname === child.href : pathname === child.href;
+                    {iconFor(item.icon, "h-5 w-5 shrink-0")}
+                    <span className="min-w-0 flex-1 truncate">
+                      {item.title}
+                    </span>
+                    <ChevronRightIcon
+                      aria-hidden
+                      className={cn(
+                        "h-4 w-4 shrink-0 transition-transform duration-fast",
+                        isExpanded && "rotate-90",
+                      )}
+                    />
+                  </button>
+                ) : (
+                  <Link
+                    href={item.href}
+                    // Announces the current page to screen readers, not just colour.
+                    aria-current={isActive ? "page" : undefined}
+                    title={collapsed ? item.title : undefined}
+                    className={cn(
+                      "flex min-h-11 items-center rounded-xl text-sm font-medium",
+                      "transition-colors duration-fast ease-out focus-visible:ring-offset-sidebar",
+                      collapsed ? "lg:justify-center lg:px-3" : "",
+                      "gap-3 px-3",
+                      isActive
+                        ? "bg-primary text-primary-foreground"
+                        : "text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                    )}
+                  >
+                    {iconFor(item.icon, "h-5 w-5 shrink-0")}
+                    <span className={cn("truncate", collapsed && "lg:hidden")}>
+                      {item.title}
+                    </span>
+                  </Link>
+                )}
 
-                    return (
-                      <Link
-                        key={child.href}
-                        href={child.href}
-                        className={cn(
-                          "block rounded-xl px-3 py-2 text-xs font-semibold text-slate-400 transition",
-                          isChildActive
-                            ? "bg-white/10 text-white"
-                            : "hover:bg-white/10 hover:text-white",
-                        )}
-                      >
-                        {child.title}
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </nav>
+                {hasChildren && isExpanded && (
+                  <div className="ml-6 mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
+                    {visibleChildren.map((child) => {
+                      const isChildActive = pathname === child.href;
 
-      <div className="mt-auto" />
-    </aside>
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          aria-current={isChildActive ? "page" : undefined}
+                          className={cn(
+                            "flex min-h-10 items-center rounded-lg px-3 text-sm",
+                            "transition-colors duration-fast focus-visible:ring-offset-sidebar",
+                            isChildActive
+                              ? "bg-sidebar-accent font-medium text-sidebar-foreground"
+                              : "text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                          )}
+                        >
+                          <span className="truncate">{child.title}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </nav>
+      </aside>
+    </>
   );
 }

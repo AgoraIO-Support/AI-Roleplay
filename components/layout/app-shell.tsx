@@ -1,18 +1,45 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
-import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
+import { SkeletonCard } from "@/components/ui/skeleton";
 import type { AuthSessionUser } from "@/src/lib/auth/session";
+
+const SIDEBAR_STORAGE_KEY = "airp-sidebar-collapsed";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [user, setUser] = useState<AuthSessionUser | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
+
+  // Collapsed state persists so the layout doesn't reset on every navigation.
+  useEffect(() => {
+    try {
+      setIsSidebarCollapsed(
+        window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true",
+      );
+    } catch {
+      /* storage unavailable — fall back to expanded */
+    }
+  }, []);
+
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarCollapsed((current) => {
+      const next = !current;
+      try {
+        window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -42,30 +69,47 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (isLoadingSession || !user) {
     return (
-      <div className="grid min-h-screen place-items-center bg-slate-50 text-sm text-slate-500">
-        Loading secure workspace...
+      <div className="min-h-dvh bg-background px-4 py-6 sm:px-6 lg:px-8">
+        <span className="sr-only" role="status" aria-live="polite">
+          Loading your workspace
+        </span>
+        {/* Skeleton in the shape of the real page so nothing jumps on load. */}
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+          <SkeletonCard className="h-24" />
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen lg:flex">
-      <Sidebar collapsed={isSidebarCollapsed} role={user.role} />
-      <div
-        className="flex min-h-screen flex-1 flex-col"
-        style={
-          {
-            "--app-sidebar-width": isSidebarCollapsed ? "6rem" : "18rem",
-          } as CSSProperties
-        }
-      >
+    <div className="min-h-dvh bg-background lg:flex">
+      <Sidebar
+        collapsed={isSidebarCollapsed}
+        role={user.role}
+        mobileOpen={isMobileNavOpen}
+        onCloseMobile={() => setIsMobileNavOpen(false)}
+      />
+      <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
         <Header
           user={user}
           onLogout={() => void logout()}
           isSidebarCollapsed={isSidebarCollapsed}
-          onToggleSidebar={() => setIsSidebarCollapsed((current) => !current)}
+          onToggleSidebar={toggleSidebar}
+          onOpenMobileNav={() => setIsMobileNavOpen(true)}
         />
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex-1 px-4 py-6 focus:outline-none sm:px-6 sm:py-8 lg:px-8"
+        >
+          {/* Caps line length on ultrawide displays instead of stretching edge to edge. */}
+          <div className="mx-auto w-full max-w-7xl">{children}</div>
+        </main>
       </div>
     </div>
   );

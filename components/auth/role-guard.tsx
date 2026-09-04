@@ -33,7 +33,9 @@ export function RoleGuard({
   }, []);
 
   if (isLoading) {
-    return <div className="text-sm text-slate-500">Checking access...</div>;
+    return (
+      <div className="text-sm text-muted-foreground">Checking access...</div>
+    );
   }
 
   if (user && allowedRoles.includes(user.role)) {
@@ -41,17 +43,19 @@ export function RoleGuard({
   }
 
   return (
-    <div className="rounded-3xl border border-amber-200 bg-amber-50 p-8 shadow-soft">
-      <p className="text-xs uppercase tracking-[0.2em] text-amber-700">Access restricted</p>
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
+    <div className="rounded-3xl border border-warning/30 bg-warning-subtle p-8 shadow-soft">
+      <p className="text-xs uppercase tracking-[0.2em] text-warning-subtle-foreground">
+        Access restricted
+      </p>
+      <h1 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
         This account cannot access this page
       </h1>
-      <p className="mt-3 max-w-2xl text-sm leading-7 text-amber-900">
+      <p className="mt-3 max-w-2xl text-sm leading-7 text-warning-subtle-foreground">
         Sign in with an account that has the required permissions to continue.
       </p>
       <Link
         href="/"
-        className="mt-5 inline-flex rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+        className="mt-5 inline-flex rounded-2xl bg-primary min-h-control px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         Return to Dashboard
       </Link>

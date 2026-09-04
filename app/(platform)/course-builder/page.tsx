@@ -6,7 +6,13 @@ import { CourseBuilderWorkspace } from "@/components/admin/course-builder-worksp
 export default function CourseBuilderPage() {
   return (
     <RoleGuard allowedRoles={["root_admin", "course_admin"]}>
-      <Suspense fallback={<div className="text-sm text-slate-500">Loading course builder...</div>}>
+      <Suspense
+        fallback={
+          <div className="text-sm text-muted-foreground">
+            Loading course builder...
+          </div>
+        }
+      >
         <CourseBuilderWorkspace />
       </Suspense>
     </RoleGuard>

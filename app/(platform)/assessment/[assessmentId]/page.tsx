@@ -4,7 +4,10 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { groupTranscriptTurns } from "@/src/lib/assessments/transcriptTurns";
-import type { CoachTurnFeedback, SavedFinalAssessment } from "@/src/lib/assessments/types";
+import type {
+  CoachTurnFeedback,
+  SavedFinalAssessment,
+} from "@/src/lib/assessments/types";
 import type { AuthSessionUser } from "@/src/lib/auth/session";
 import { canUserManageRolePlay } from "@/src/lib/roleplays/access";
 import type { RolePlayConfig } from "@/src/lib/roleplays/types";
@@ -12,14 +15,20 @@ import type { RolePlayConfig } from "@/src/lib/roleplays/types";
 export default function FinalAssessmentDetailPage() {
   const params = useParams<{ assessmentId: string }>();
   const assessmentId = params.assessmentId;
-  const [assessment, setAssessment] = useState<SavedFinalAssessment | null>(null);
+  const [assessment, setAssessment] = useState<SavedFinalAssessment | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [coachFeedbackByTurnId, setCoachFeedbackByTurnId] = useState<
     Record<string, CoachTurnFeedback>
   >({});
-  const [coachErrorByTurnId, setCoachErrorByTurnId] = useState<Record<string, string>>({});
-  const [coachLoadingTurnId, setCoachLoadingTurnId] = useState<string | null>(null);
+  const [coachErrorByTurnId, setCoachErrorByTurnId] = useState<
+    Record<string, string>
+  >({});
+  const [coachLoadingTurnId, setCoachLoadingTurnId] = useState<string | null>(
+    null,
+  );
   const [canDownloadTranscript, setCanDownloadTranscript] = useState(false);
 
   const transcriptTurns = useMemo(
@@ -45,15 +54,21 @@ export default function FinalAssessmentDetailPage() {
         });
 
         if (!response.ok) {
-          throw new Error(`Unable to load final assessment. HTTP ${response.status}.`);
+          throw new Error(
+            `Unable to load final assessment. HTTP ${response.status}.`,
+          );
         }
 
         const nextAssessment = (await response.json()) as SavedFinalAssessment;
         setAssessment(nextAssessment);
-        setCanDownloadTranscript(await canCurrentUserDownloadTranscript(nextAssessment));
+        setCanDownloadTranscript(
+          await canCurrentUserDownloadTranscript(nextAssessment),
+        );
       } catch (error) {
         setErrorMessage(
-          error instanceof Error ? error.message : "Unable to load final assessment.",
+          error instanceof Error
+            ? error.message
+            : "Unable to load final assessment.",
         );
       } finally {
         setLoading(false);
@@ -61,8 +76,12 @@ export default function FinalAssessmentDetailPage() {
     })();
   }, [assessmentId]);
 
-  async function canCurrentUserDownloadTranscript(nextAssessment: SavedFinalAssessment) {
-    const sessionResponse = await fetch("/api/auth/session", { cache: "no-store" });
+  async function canCurrentUserDownloadTranscript(
+    nextAssessment: SavedFinalAssessment,
+  ) {
+    const sessionResponse = await fetch("/api/auth/session", {
+      cache: "no-store",
+    });
     const sessionPayload = sessionResponse.ok
       ? ((await sessionResponse.json()) as { user?: AuthSessionUser })
       : {};
@@ -76,16 +95,19 @@ export default function FinalAssessmentDetailPage() {
       return true;
     }
 
-    const roleplayResponse = await fetch(`/api/roleplays/${nextAssessment.scenarioId}`, {
-      cache: "no-store",
-    });
+    const roleplayResponse = await fetch(
+      `/api/roleplays/${nextAssessment.scenarioId}`,
+      {
+        cache: "no-store",
+      },
+    );
     const roleplayPayload = roleplayResponse.ok
       ? ((await roleplayResponse.json()) as { roleplay?: RolePlayConfig })
       : {};
 
     return Boolean(
       roleplayPayload.roleplay &&
-        canUserManageRolePlay(sessionUser, roleplayPayload.roleplay),
+      canUserManageRolePlay(sessionUser, roleplayPayload.roleplay),
     );
   }
 
@@ -114,10 +136,13 @@ export default function FinalAssessmentDetailPage() {
       });
 
       if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        throw new Error(payload?.error ?? `Coach feedback failed with HTTP ${response.status}.`);
+        const payload = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(
+          payload?.error ??
+            `Coach feedback failed with HTTP ${response.status}.`,
+        );
       }
 
       const feedback = (await response.json()) as CoachTurnFeedback;
@@ -129,7 +154,9 @@ export default function FinalAssessmentDetailPage() {
       setCoachErrorByTurnId((current) => ({
         ...current,
         [turnId]:
-          error instanceof Error ? error.message : "Unable to generate coach feedback.",
+          error instanceof Error
+            ? error.message
+            : "Unable to generate coach feedback.",
       }));
     } finally {
       setCoachLoadingTurnId(null);
@@ -137,12 +164,16 @@ export default function FinalAssessmentDetailPage() {
   }
 
   if (loading) {
-    return <div className="text-sm text-slate-500">Loading final assessment...</div>;
+    return (
+      <div className="text-sm text-muted-foreground">
+        Loading final assessment...
+      </div>
+    );
   }
 
   if (errorMessage || !assessment) {
     return (
-      <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900 shadow-soft">
+      <div className="rounded-3xl border border-warning/30 bg-warning-subtle p-6 text-sm text-warning-subtle-foreground shadow-soft">
         {errorMessage ?? "Final assessment not found."}
       </div>
     );
@@ -151,23 +182,25 @@ export default function FinalAssessmentDetailPage() {
   return (
     <div className="space-y-6">
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-3xl border border-blue-100 bg-hero-grid p-6 shadow-soft">
-          <p className="text-xs uppercase tracking-[0.24em] text-primary">Final Assessment</p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
+        <div className="rounded-3xl border border-primary/20 bg-hero-grid p-6 shadow-soft">
+          <p className="text-xs uppercase tracking-[0.24em] text-primary">
+            Final Assessment
+          </p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
             {assessment.scenarioTitle}
           </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
             {assessment.summary}
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
-            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">
+            <span className="rounded-full bg-primary-subtle px-3 py-1 text-xs font-semibold text-primary ring-1 ring-ring/30">
               Trainee-facing review
             </span>
             <span
               className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
                 assessment.outcome === "passed"
-                  ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                  : "bg-amber-50 text-amber-700 ring-amber-200"
+                  ? "bg-success-subtle text-success-subtle-foreground ring-success/30"
+                  : "bg-warning-subtle text-warning-subtle-foreground ring-warning/30"
               }`}
             >
               {assessment.outcome === "passed" ? "Passed" : "Needs Review"}
@@ -175,34 +208,45 @@ export default function FinalAssessmentDetailPage() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-blue-100 bg-white p-6 text-center shadow-soft">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Overall Score</p>
-          <p className="mt-4 text-6xl font-semibold text-slate-950">
+        <div className="rounded-3xl border border-primary/20 bg-surface p-6 text-center shadow-soft">
+          <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+            Overall Score
+          </p>
+          <p className="mt-4 text-6xl font-semibold text-foreground">
             {assessment.overallScore}%
           </p>
-          <p className="mt-3 text-sm text-slate-500">
-            Generated from objectives, transcript signals, and conversation completeness.
+          <p className="mt-3 text-sm text-muted-foreground">
+            Generated from objectives, transcript signals, and conversation
+            completeness.
           </p>
         </div>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-2">
-        <div className="rounded-3xl border border-blue-100 bg-white p-6 shadow-soft">
-          <h2 className="text-xl font-semibold text-slate-950">Strengths</h2>
+        <div className="rounded-3xl border border-primary/20 bg-surface p-6 shadow-soft">
+          <h2 className="text-xl font-semibold text-foreground">Strengths</h2>
           <div className="mt-4 space-y-3">
             {assessment.strengths.map((item) => (
-              <div key={item} className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800">
+              <div
+                key={item}
+                className="rounded-2xl bg-success-subtle p-4 text-sm text-success-subtle-foreground"
+              >
                 {item}
               </div>
             ))}
           </div>
         </div>
 
-        <div className="rounded-3xl border border-blue-100 bg-white p-6 shadow-soft">
-          <h2 className="text-xl font-semibold text-slate-950">Coaching Focus</h2>
+        <div className="rounded-3xl border border-primary/20 bg-surface p-6 shadow-soft">
+          <h2 className="text-xl font-semibold text-foreground">
+            Coaching Focus
+          </h2>
           <div className="mt-4 space-y-3">
             {assessment.improvements.map((item) => (
-              <div key={item} className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">
+              <div
+                key={item}
+                className="rounded-2xl bg-warning-subtle p-4 text-sm text-warning-subtle-foreground"
+              >
                 {item}
               </div>
             ))}
@@ -210,54 +254,79 @@ export default function FinalAssessmentDetailPage() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-blue-100 bg-white p-6 shadow-soft">
-        <h2 className="text-xl font-semibold text-slate-950">Rubric Dimensions</h2>
+      <section className="rounded-3xl border border-primary/20 bg-surface p-6 shadow-soft">
+        <h2 className="text-xl font-semibold text-foreground">
+          Rubric Dimensions
+        </h2>
         <div className="mt-5 grid gap-4 xl:grid-cols-2">
           {assessment.dimensions.map((dimension) => (
-            <div key={dimension.label} className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+            <div
+              key={dimension.label}
+              className="rounded-2xl border border-primary/20 bg-primary-subtle/50 p-4"
+            >
               <div className="flex items-center justify-between gap-3">
-                <p className="font-semibold text-slate-950">{dimension.label}</p>
-                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700">
+                <p className="font-semibold text-foreground">
+                  {dimension.label}
+                </p>
+                <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-primary">
                   {dimension.score}%
                 </span>
               </div>
-              <div className="mt-3 h-2 rounded-full bg-white">
+              <div className="mt-3 h-2 rounded-full bg-surface">
                 <div
                   className="h-2 rounded-full bg-primary"
                   style={{ width: `${dimension.score}%` }}
                 />
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-600">{dimension.summary}</p>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                {dimension.summary}
+              </p>
             </div>
           ))}
         </div>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-2">
-        <div className="rounded-3xl border border-blue-100 bg-white p-6 shadow-soft">
-          <h2 className="text-xl font-semibold text-slate-950">Completed Objectives</h2>
+        <div className="rounded-3xl border border-primary/20 bg-surface p-6 shadow-soft">
+          <h2 className="text-xl font-semibold text-foreground">
+            Completed Objectives
+          </h2>
           <div className="mt-4 space-y-3">
             {assessment.completedObjectives.length === 0 ? (
-              <p className="text-sm text-slate-500">No completed objectives recorded.</p>
+              <p className="text-sm text-muted-foreground">
+                No completed objectives recorded.
+              </p>
             ) : (
               assessment.completedObjectives.map((objective) => (
-                <div key={objective.id} className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800">
+                <div
+                  key={objective.id}
+                  className="rounded-2xl bg-success-subtle p-4 text-sm text-success-subtle-foreground"
+                >
                   <p className="font-semibold">{objective.label}</p>
-                  {objective.evidence && <p className="mt-2">Evidence: {objective.evidence}</p>}
+                  {objective.evidence && (
+                    <p className="mt-2">Evidence: {objective.evidence}</p>
+                  )}
                 </div>
               ))
             )}
           </div>
         </div>
 
-        <div className="rounded-3xl border border-blue-100 bg-white p-6 shadow-soft">
-          <h2 className="text-xl font-semibold text-slate-950">Missed Required Objectives</h2>
+        <div className="rounded-3xl border border-primary/20 bg-surface p-6 shadow-soft">
+          <h2 className="text-xl font-semibold text-foreground">
+            Missed Required Objectives
+          </h2>
           <div className="mt-4 space-y-3">
             {assessment.missedObjectives.length === 0 ? (
-              <p className="text-sm text-slate-500">No missed required objectives.</p>
+              <p className="text-sm text-muted-foreground">
+                No missed required objectives.
+              </p>
             ) : (
               assessment.missedObjectives.map((objective) => (
-                <div key={objective.id} className="rounded-2xl bg-rose-50 p-4 text-sm text-rose-800">
+                <div
+                  key={objective.id}
+                  className="rounded-2xl bg-danger-subtle p-4 text-sm text-danger-subtle-foreground"
+                >
                   {objective.label}
                 </div>
               ))
@@ -266,21 +335,24 @@ export default function FinalAssessmentDetailPage() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-blue-100 bg-white p-6 shadow-soft">
+      <section className="rounded-3xl border border-primary/20 bg-surface p-6 shadow-soft">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold text-slate-950">Transcript Review</h2>
+          <h2 className="text-xl font-semibold text-foreground">
+            Transcript Review
+          </h2>
           {canDownloadTranscript && (
             <a
               href={`/api/assessments/${assessment.id}/transcript`}
-              className="text-sm font-semibold text-primary hover:text-blue-700"
+              className="text-sm font-semibold text-primary hover:text-primary"
             >
               Download Transcript
             </a>
           )}
         </div>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-          Consecutive transcript fragments are grouped into conversation turns, so coach feedback
-          reviews the full learner reply instead of a broken ASR snippet.
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+          Consecutive transcript fragments are grouped into conversation turns,
+          so coach feedback reviews the full learner reply instead of a broken
+          ASR snippet.
         </p>
         <div className="mt-5 space-y-3">
           {transcriptTurns.map((turn) => {
@@ -289,16 +361,23 @@ export default function FinalAssessmentDetailPage() {
             const isCoachLoading = coachLoadingTurnId === turn.id;
 
             return (
-              <div key={turn.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div
+                key={turn.id}
+                className="rounded-2xl border border-border bg-surface-sunken p-4"
+              >
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-slate-950">
-                    {turn.speaker_type === "engineer" ? "engineer turn" : "customer_ai"}
+                  <p className="text-sm font-semibold text-foreground">
+                    {turn.speaker_type === "engineer"
+                      ? "engineer turn"
+                      : "customer_ai"}
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted-foreground">
                     {new Date(turn.startedAt).toLocaleTimeString()}
                   </p>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-slate-700">{turn.text}</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  {turn.text}
+                </p>
 
                 {turn.speaker_type === "engineer" && (
                   <div className="mt-4">
@@ -306,7 +385,7 @@ export default function FinalAssessmentDetailPage() {
                       type="button"
                       onClick={() => void loadCoachFeedback(turn.id)}
                       disabled={Boolean(coachLoadingTurnId) && !isCoachLoading}
-                      className="rounded-2xl border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex items-center justify-center rounded-2xl border border-primary/20 bg-surface min-h-control px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary-subtle disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     >
                       {isCoachLoading
                         ? "Generating feedback..."
@@ -316,27 +395,35 @@ export default function FinalAssessmentDetailPage() {
                     </button>
 
                     {coachError && (
-                      <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                      <div className="mt-3 rounded-2xl border border-warning/30 bg-warning-subtle p-3 text-sm text-warning-subtle-foreground">
                         {coachError}
                       </div>
                     )}
 
                     {feedback && (
-                      <div className="mt-3 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+                      <div className="mt-3 rounded-2xl border border-primary/20 bg-surface p-4 shadow-sm">
                         <p className="text-xs uppercase tracking-[0.2em] text-primary">
                           Turn Coach
                         </p>
                         <div className="mt-3 grid gap-3 xl:grid-cols-3">
-                          <div className="rounded-2xl bg-emerald-50 p-3 text-sm text-emerald-800">
-                            <p className="font-semibold text-emerald-900">What worked</p>
-                            <p className="mt-2 leading-6">{feedback.whatWorked}</p>
+                          <div className="rounded-2xl bg-success-subtle p-3 text-sm text-success-subtle-foreground">
+                            <p className="font-semibold text-success-subtle-foreground">
+                              What worked
+                            </p>
+                            <p className="mt-2 leading-6">
+                              {feedback.whatWorked}
+                            </p>
                           </div>
-                          <div className="rounded-2xl bg-amber-50 p-3 text-sm text-amber-900">
+                          <div className="rounded-2xl bg-warning-subtle p-3 text-sm text-warning-subtle-foreground">
                             <p className="font-semibold">What to improve</p>
-                            <p className="mt-2 leading-6">{feedback.whatToImprove}</p>
+                            <p className="mt-2 leading-6">
+                              {feedback.whatToImprove}
+                            </p>
                           </div>
-                          <div className="rounded-2xl bg-blue-50 p-3 text-sm text-blue-900">
-                            <p className="font-semibold">Suggested better response</p>
+                          <div className="rounded-2xl bg-primary-subtle p-3 text-sm text-primary">
+                            <p className="font-semibold">
+                              Suggested better response
+                            </p>
                             <p className="mt-2 leading-6">
                               {feedback.suggestedBetterResponse}
                             </p>
