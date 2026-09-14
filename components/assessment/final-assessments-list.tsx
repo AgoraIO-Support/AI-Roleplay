@@ -54,6 +54,15 @@ function attemptNumber(
   );
 }
 
+function ordinalAttempt(value: number) {
+  const remainder = value % 100;
+  if (remainder >= 11 && remainder <= 13) return `${value}th attempt`;
+
+  const suffix =
+    value % 10 === 1 ? "st" : value % 10 === 2 ? "nd" : value % 10 === 3 ? "rd" : "th";
+  return `${value}${suffix} attempt`;
+}
+
 export function FinalAssessmentsList({
   initialScope,
 }: {
@@ -222,6 +231,7 @@ export function FinalAssessmentsList({
             {assessments.map((assessment) => {
               const score = effectiveAssessmentScore(assessment);
               const outcome = effectiveAssessmentOutcome(assessment);
+              const attempt = attemptNumber(assessments, assessment);
 
               return (
                 <article key={assessment.id} className="group grid gap-4 p-5 transition duration-200 ease-out hover:bg-primary-subtle/35 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
@@ -232,13 +242,15 @@ export function FinalAssessmentsList({
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-lg font-semibold text-foreground">{assessment.scenarioTitle}</h3>
-                      <Badge variant={outcomeVariant(outcome)} dot>{outcome === "passed" ? "Passed" : "Needs review"}</Badge>
-                      {assessment.scoreOverride && <Badge variant="info">Admin reviewed</Badge>}
+                      <Badge variant={outcomeVariant(outcome)} dot>{outcome === "passed" ? "Passed" : "Failed"}</Badge>
+                      <Badge variant="info">{ordinalAttempt(attempt)}</Badge>
                     </div>
                     <p className="mt-1.5 text-sm text-muted-foreground">Completed {formatDate(assessment.createdAt)}</p>
                     <p className="mt-2 line-clamp-2 max-w-3xl text-sm leading-6 text-muted-foreground">{assessment.summary}</p>
                     {assessment.scoreOverride && (
-                      <p className="mt-2 text-xs text-info-subtle-foreground">AI score: {assessment.overallScore}% · Reviewed by {assessment.scoreOverride.overriddenBy.name}</p>
+                      <p className="mt-2 text-xs text-info-subtle-foreground">
+                        Reviewed by the course admin.
+                      </p>
                     )}
                   </div>
                   <Link
@@ -272,6 +284,7 @@ export function FinalAssessmentsList({
                   {assessments.map((assessment) => {
                     const score = effectiveAssessmentScore(assessment);
                     const outcome = effectiveAssessmentOutcome(assessment);
+                    const attempt = attemptNumber(assessments, assessment);
 
                     return (
                       <tr key={assessment.id} className="transition duration-200 ease-out hover:bg-primary-subtle/35">
@@ -283,11 +296,13 @@ export function FinalAssessmentsList({
                           <p className="truncate font-medium text-foreground">{assessment.scenarioTitle}</p>
                           {assessment.scoreOverride && <p className="mt-1 text-xs text-info-subtle-foreground">Admin reviewed · AI {assessment.overallScore}%</p>}
                         </td>
-                        <td className="px-5 py-4 text-muted-foreground tabular">Attempt {attemptNumber(assessments, assessment)}</td>
+                        <td className="px-5 py-4">
+                          <Badge variant="info">{ordinalAttempt(attempt)}</Badge>
+                        </td>
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-foreground tabular">{score}%</span>
-                            <Badge variant={outcomeVariant(outcome)} size="sm" dot>{outcome === "passed" ? "Passed" : "Review"}</Badge>
+                            <Badge variant={outcomeVariant(outcome)} size="sm" dot>{outcome === "passed" ? "Passed" : "Failed"}</Badge>
                           </div>
                         </td>
                         <td className="whitespace-nowrap px-5 py-4 text-muted-foreground">{formatDate(assessment.createdAt)}</td>

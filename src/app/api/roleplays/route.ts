@@ -15,6 +15,34 @@ function isAdmin(role: string) {
   return role === "root_admin" || role === "course_admin";
 }
 
+function missingPublishFields(config: RolePlayConfig) {
+  const fields: string[] = [];
+  const passingScore = config.settings?.passingScore;
+
+  if (!config.settings?.meetingTitle?.trim()) fields.push("Meeting Title");
+  if (!config.plan?.scenario?.trim()) fields.push("Scenario");
+  if (!config.plan?.learnerRole?.trim()) fields.push("Learner Role");
+  if (!config.character?.role?.trim()) fields.push("Character Role");
+  if (!config.character?.greetingMessage?.trim()) fields.push("Greeting Message");
+  if (
+    typeof passingScore !== "number" ||
+    !Number.isInteger(passingScore) ||
+    passingScore < 1 ||
+    passingScore > 100
+  ) {
+    fields.push("Passing Score");
+  }
+  if (
+    !Array.isArray(config.settings?.learnerGoals) ||
+    config.settings.learnerGoals.length === 0 ||
+    config.settings.learnerGoals.some((goal) => !goal.label?.trim())
+  ) {
+    fields.push("Learner Goals / Objectives");
+  }
+
+  return fields;
+}
+
 export async function GET() {
   const session = await getAuthSession();
 
@@ -42,6 +70,18 @@ export async function POST(request: Request) {
 
   if (!config?.id || !config.settings?.meetingTitle) {
     return NextResponse.json({ error: "Valid roleplay config is required." }, { status: 400 });
+  }
+
+  if (config.status === "published") {
+    const missingFields = missingPublishFields(config);
+    if (missingFields.length > 0) {
+      return NextResponse.json(
+        {
+          error: `Complete the required fields before publishing: ${missingFields.join(", ")}.`,
+        },
+        { status: 400 },
+      );
+    }
   }
 
   const existing = await getRolePlayConfigById(config.id);

@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ChevronRightIcon } from "@/components/ui/icons";
 import { groupTranscriptTurns } from "@/src/lib/assessments/transcriptTurns";
 import type {
+  AssessmentDimension,
+  AssessmentScoreOverride,
   CoachTurnFeedback,
   SavedFinalAssessment,
 } from "@/src/lib/assessments/types";
@@ -17,6 +19,68 @@ import {
 import type { AuthSessionUser } from "@/src/lib/auth/session";
 import { canUserManageRolePlay } from "@/src/lib/roleplays/access";
 import type { RolePlayConfig } from "@/src/lib/roleplays/types";
+
+function formatRubricPoints(value: number) {
+  return String(Math.round(value));
+}
+
+function weightedRubricDimensions(
+  dimensions: AssessmentDimension[],
+  scoreOverride?: AssessmentScoreOverride,
+) {
+  const fallbackWeight = dimensions.length > 0 ? 100 / dimensions.length : 0;
+  const reviewedPoints = new Map(
+    scoreOverride?.type === "rubric"
+      ? scoreOverride.dimensions?.map((dimension) => [dimension.label, dimension.points])
+      : [],
+  );
+
+  const calculatedDimensions = dimensions.map((dimension) => {
+    const maximumPoints = dimension.weight > 0 ? dimension.weight : fallbackWeight;
+    const reviewedPointsForDimension = reviewedPoints.get(dimension.label);
+    const earnedPoints =
+      typeof reviewedPointsForDimension === "number"
+        ? reviewedPointsForDimension
+        : (dimension.score / 100) * maximumPoints;
+
+    return {
+      ...dimension,
+      maximumPoints,
+      earnedPoints,
+    };
+  });
+
+  // Distribute rounding so the whole-number rows still match the displayed total.
+  const targetTotal = Math.round(
+    calculatedDimensions.reduce((total, dimension) => total + dimension.earnedPoints, 0),
+  );
+  const roundedPoints = calculatedDimensions.map((dimension) => Math.floor(dimension.earnedPoints));
+  let remainingPoints = targetTotal - roundedPoints.reduce((total, points) => total + points, 0);
+  const fractionalIndexes = calculatedDimensions
+    .map((dimension, index) => ({
+      index,
+      fractionalPart: dimension.earnedPoints - Math.floor(dimension.earnedPoints),
+    }))
+    .sort((first, second) => second.fractionalPart - first.fractionalPart);
+
+  for (const { index } of fractionalIndexes) {
+    if (remainingPoints <= 0) break;
+    roundedPoints[index] += 1;
+    remainingPoints -= 1;
+  }
+
+  return calculatedDimensions.map((dimension, index) => {
+    const earnedPoints = roundedPoints[index];
+    return {
+      ...dimension,
+      earnedPoints,
+      score:
+        dimension.maximumPoints > 0
+          ? (earnedPoints / dimension.maximumPoints) * 100
+          : 0,
+    };
+  });
+}
 
 export default function FinalAssessmentDetailPage() {
   const params = useParams<{ assessmentId: string }>();
@@ -40,7 +104,16 @@ export default function FinalAssessmentDetailPage() {
   const [overrideScoreDraft, setOverrideScoreDraft] = useState("");
   const [overrideReasonDraft, setOverrideReasonDraft] = useState("");
   const [isSavingOverride, setIsSavingOverride] = useState(false);
-  const [overrideMessage, setOverrideMessage] = useState<string | null>(null);
+  const [showOverallOverrideDialog, setShowOverallOverrideDialog] = useState(false);
+  const [isEditingRubric, setIsEditingRubric] = useState(false);
+  const [rubricPointDrafts, setRubricPointDrafts] = useState<Record<string, string>>({});
+  const [rubricOverrideReason, setRubricOverrideReason] = useState("");
+  const [isSavingRubric, setIsSavingRubric] = useState(false);
+  const [rubricOverrideMessage, setRubricOverrideMessage] = useState<string | null>(null);
+  const [showRubricConfirmDialog, setShowRubricConfirmDialog] = useState(false);
+  const [showConfirmScoreDialog, setShowConfirmScoreDialog] = useState(false);
+  const [isConfirmingScore, setIsConfirmingScore] = useState(false);
+  const rubricSectionRef = useRef<HTMLElement>(null);
 
   const transcriptTurns = useMemo(
     () => (assessment ? groupTranscriptTurns(assessment.transcript) : []),
@@ -74,6 +147,23 @@ export default function FinalAssessmentDetailPage() {
         setAssessment(nextAssessment);
         setOverrideScoreDraft(String(nextAssessment.scoreOverride?.score ?? nextAssessment.overallScore));
         setOverrideReasonDraft(nextAssessment.scoreOverride?.reason ?? "");
+        const rubricDimensions = weightedRubricDimensions(
+          nextAssessment.dimensions,
+          nextAssessment.scoreOverride,
+        );
+        setRubricPointDrafts(
+          Object.fromEntries(
+            rubricDimensions.map((dimension) => [
+              dimension.label,
+              formatRubricPoints(dimension.earnedPoints),
+            ]),
+          ),
+        );
+        setRubricOverrideReason(
+          nextAssessment.scoreOverride?.type === "rubric"
+            ? nextAssessment.scoreOverride.reason
+            : "",
+        );
         setCanDownloadTranscript(
           await canCurrentUserDownloadTranscript(nextAssessment),
         );
@@ -180,7 +270,7 @@ export default function FinalAssessmentDetailPage() {
     if (!assessment) return;
 
     setIsSavingOverride(true);
-    setOverrideMessage(null);
+    setRubricOverrideMessage(null);
     try {
       const response = await fetch(`/api/assessments/${assessment.id}`, {
         method: "PATCH",
@@ -209,13 +299,136 @@ export default function FinalAssessmentDetailPage() {
       setAssessment(payload);
       setOverrideScoreDraft(String(payload.scoreOverride?.score ?? payload.overallScore));
       setOverrideReasonDraft(payload.scoreOverride?.reason ?? "");
-      setOverrideMessage(clear ? "AI score restored." : "Course-admin grade saved.");
+      setShowOverallOverrideDialog(false);
+      setRubricOverrideMessage(clear ? "AI score restored." : "Overall score saved.");
+      if (!clear) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
     } catch (error) {
-      setOverrideMessage(
+      setRubricOverrideMessage(
         error instanceof Error ? error.message : "Unable to save the grade.",
       );
     } finally {
       setIsSavingOverride(false);
+    }
+  }
+
+  async function saveRubricOverride(clear = false) {
+    if (!assessment) return;
+
+    setIsSavingRubric(true);
+    setRubricOverrideMessage(null);
+    try {
+      const dimensions = weightedRubricDimensions(assessment.dimensions);
+      const response = await fetch(`/api/assessments/${assessment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          clear
+            ? { clear: true }
+            : {
+                rubricDimensions: dimensions.map((dimension) => ({
+                  label: dimension.label,
+                  points: Number(rubricPointDrafts[dimension.label]),
+                })),
+                reason: rubricOverrideReason,
+              },
+        ),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | SavedFinalAssessment
+        | { error?: string }
+        | null;
+      if (!response.ok || !payload || !("overallScore" in payload)) {
+        throw new Error(
+          payload && "error" in payload && payload.error
+            ? payload.error
+            : `Unable to save the rubric override. HTTP ${response.status}.`,
+        );
+      }
+
+      setAssessment(payload);
+      setOverrideScoreDraft(String(payload.scoreOverride?.score ?? payload.overallScore));
+      setOverrideReasonDraft(payload.scoreOverride?.reason ?? "");
+      const nextRubricDimensions = weightedRubricDimensions(
+        payload.dimensions,
+        payload.scoreOverride,
+      );
+      setRubricPointDrafts(
+        Object.fromEntries(
+          nextRubricDimensions.map((dimension) => [
+            dimension.label,
+            formatRubricPoints(dimension.earnedPoints),
+          ]),
+        ),
+      );
+      setRubricOverrideReason(
+        payload.scoreOverride?.type === "rubric" ? payload.scoreOverride.reason : "",
+      );
+      setIsEditingRubric(false);
+      setShowRubricConfirmDialog(false);
+      if (clear) {
+        setRubricOverrideMessage("AI rubric scores restored.");
+      } else {
+        const updatedScore = effectiveAssessmentScore(payload);
+        setRubricOverrideMessage(`Rubric changes confirmed. Final score updated to ${updatedScore}%.`);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    } catch (error) {
+      setShowRubricConfirmDialog(false);
+      setRubricOverrideMessage(
+        error instanceof Error ? error.message : "Unable to save the rubric override.",
+      );
+    } finally {
+      setIsSavingRubric(false);
+    }
+  }
+
+  function beginRubricOverride() {
+    if (isEditingRubric) {
+      setIsEditingRubric(false);
+      return;
+    }
+
+    setIsEditingRubric(true);
+    setRubricOverrideMessage(null);
+    window.requestAnimationFrame(() => {
+      rubricSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  async function confirmFinalScore() {
+    if (!assessment) return;
+
+    setIsConfirmingScore(true);
+    setRubricOverrideMessage(null);
+    try {
+      const response = await fetch(`/api/assessments/${assessment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | SavedFinalAssessment
+        | { error?: string }
+        | null;
+      if (!response.ok || !payload || !("overallScore" in payload)) {
+        throw new Error(
+          payload && "error" in payload && payload.error
+            ? payload.error
+            : `Unable to confirm the score. HTTP ${response.status}.`,
+        );
+      }
+
+      setAssessment(payload);
+      setShowConfirmScoreDialog(false);
+      setRubricOverrideMessage("Final score confirmed.");
+    } catch (error) {
+      setRubricOverrideMessage(
+        error instanceof Error ? error.message : "Unable to confirm the score.",
+      );
+    } finally {
+      setIsConfirmingScore(false);
     }
   }
 
@@ -237,6 +450,19 @@ export default function FinalAssessmentDetailPage() {
 
   const finalScore = effectiveAssessmentScore(assessment);
   const finalOutcome = effectiveAssessmentOutcome(assessment);
+  const rubricDimensions = weightedRubricDimensions(
+    assessment.dimensions,
+    assessment.scoreOverride,
+  );
+  const rubricTotal = rubricDimensions.reduce(
+    (total, dimension) => total + dimension.earnedPoints,
+    0,
+  );
+  const rubricMaximum = rubricDimensions.reduce(
+    (total, dimension) => total + dimension.maximumPoints,
+    0,
+  );
+  const assessmentOverview = `Final assessment completed with an overall score of ${finalScore}%. Review objective coverage and coaching notes for specific next steps.`;
   const returnToLearnerResults = searchParams.get("from") === "learners";
   const learningRecordUserId = searchParams.get("userId");
   const returnToLearningRecord =
@@ -270,7 +496,7 @@ export default function FinalAssessmentDetailPage() {
             {assessment.scenarioTitle}
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
-            {assessment.summary}
+            {assessmentOverview}
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             <span className="rounded-full bg-primary-subtle px-3 py-1 text-xs font-semibold text-primary ring-1 ring-ring/30">
@@ -283,12 +509,48 @@ export default function FinalAssessmentDetailPage() {
                   : "bg-warning-subtle text-warning-subtle-foreground ring-warning/30"
               }`}
             >
-              {finalOutcome === "passed" ? "Passed" : "Needs Review"}
+              {finalOutcome === "passed" ? "Passed" : "Failed"}
             </span>
           </div>
         </div>
 
         <div className="rounded-3xl border border-primary/20 bg-surface p-6 text-center shadow-soft">
+          {canDownloadTranscript && (
+            <div className="mb-6 flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                onClick={beginRubricOverride}
+                disabled={isSavingRubric}
+                className="inline-flex min-h-control-sm items-center justify-center rounded-xl border border-primary/20 bg-surface px-3 py-2 text-sm font-semibold text-primary transition hover:bg-primary-subtle disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                {isEditingRubric ? "Cancel rubric override" : "Override rubric scores"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOverrideScoreDraft(String(finalScore));
+                  setOverrideReasonDraft("");
+                  setShowOverallOverrideDialog(true);
+                  setRubricOverrideMessage(null);
+                }}
+                disabled={isSavingOverride}
+                className="inline-flex min-h-control-sm items-center justify-center rounded-xl border border-primary/20 bg-surface px-3 py-2 text-sm font-semibold text-primary transition hover:bg-primary-subtle disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                Override overall score
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConfirmScoreDialog(true);
+                  setRubricOverrideMessage(null);
+                }}
+                disabled={isConfirmingScore}
+                className="inline-flex min-h-control-sm items-center justify-center rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow-raised transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                Confirm final score
+              </button>
+            </div>
+          )}
           <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
             Overall Score
           </p>
@@ -296,73 +558,10 @@ export default function FinalAssessmentDetailPage() {
             {finalScore}%
           </p>
           <p className="mt-3 text-sm text-muted-foreground">
-            {assessment.scoreOverride
-              ? `Course-admin score replaces the AI score of ${assessment.overallScore}%.`
-              : "Generated from weighted rubric evidence, objective gates, and conversation signals."}
+            {finalOutcome === "passed" ? "You Passed!" : "Better luck next time."}
           </p>
         </div>
       </section>
-
-      {canDownloadTranscript && (
-        <section className="grid gap-5 rounded-3xl border border-primary/20 bg-surface p-6 shadow-soft xl:grid-cols-[0.72fr_1.28fr]">
-          <div>
-            <h2 className="text-xl font-semibold text-foreground">Course-admin grade</h2>
-            <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-              Keep the AI result as the evidence baseline. A manual score is an accountable exception, not a replacement for the transcript review.
-            </p>
-            {assessment.scoreOverride && (
-              <p className="mt-4 text-sm font-semibold text-primary">
-                Last reviewed by {assessment.scoreOverride.overriddenBy.name} on {new Date(assessment.scoreOverride.overriddenAt).toLocaleDateString()}.
-              </p>
-            )}
-          </div>
-          <div className="grid gap-4 sm:grid-cols-[9rem_1fr] sm:items-start">
-            <label className="space-y-2">
-              <span className="text-sm font-semibold text-muted-foreground">Final score</span>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="1"
-                value={overrideScoreDraft}
-                onChange={(event) => setOverrideScoreDraft(event.target.value)}
-                className="w-full rounded-2xl border border-border bg-surface-sunken px-4 py-3 text-lg font-semibold tabular-nums text-foreground outline-none transition focus:border-primary focus:bg-surface focus:ring-4 focus:ring-ring/30"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm font-semibold text-muted-foreground">Review rationale</span>
-              <textarea
-                value={overrideReasonDraft}
-                onChange={(event) => setOverrideReasonDraft(event.target.value)}
-                rows={3}
-                placeholder="Explain the transcript evidence that supports this exception."
-                className="w-full resize-y rounded-2xl border border-border bg-surface-sunken px-4 py-3 text-sm leading-6 text-foreground outline-none transition focus:border-primary focus:bg-surface focus:ring-4 focus:ring-ring/30"
-              />
-            </label>
-            <div className="flex flex-wrap gap-3 sm:col-span-2">
-              <button
-                type="button"
-                disabled={isSavingOverride}
-                onClick={() => void saveScoreOverride()}
-                className="inline-flex min-h-control items-center justify-center rounded-2xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-raised transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-              >
-                {isSavingOverride ? "Saving grade..." : "Save course-admin grade"}
-              </button>
-              {assessment.scoreOverride && (
-                <button
-                  type="button"
-                  disabled={isSavingOverride}
-                  onClick={() => void saveScoreOverride(true)}
-                  className="inline-flex min-h-control items-center justify-center rounded-2xl border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                >
-                  Restore AI score
-                </button>
-              )}
-              {overrideMessage && <p className="self-center text-sm font-medium text-muted-foreground">{overrideMessage}</p>}
-            </div>
-          </div>
-        </section>
-      )}
 
       <section className="grid gap-6 xl:grid-cols-2">
         <div className="rounded-3xl border border-primary/20 bg-surface p-6 shadow-soft">
@@ -396,12 +595,32 @@ export default function FinalAssessmentDetailPage() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-primary/20 bg-surface p-6 shadow-soft">
-        <h2 className="text-xl font-semibold text-foreground">
-          Rubric Dimensions
-        </h2>
+      <section
+        ref={rubricSectionRef}
+        className="scroll-mt-6 rounded-3xl border border-primary/20 bg-surface p-6 shadow-soft"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">
+              Weighted Rubric Score
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Each dimension earns points up to its maximum. Together, the rubric totals 100 points.
+            </p>
+          </div>
+          {canDownloadTranscript && isEditingRubric && (
+            <button
+              type="button"
+              disabled={isSavingRubric}
+              onClick={() => setShowRubricConfirmDialog(true)}
+              className="inline-flex min-h-control items-center justify-center rounded-2xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-raised transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              Confirm changes
+            </button>
+          )}
+        </div>
         <div className="mt-5 grid gap-4 xl:grid-cols-2">
-          {assessment.dimensions.map((dimension) => (
+          {rubricDimensions.map((dimension) => (
             <div
               key={dimension.label}
               className="rounded-2xl border border-primary/20 bg-primary-subtle/50 p-4"
@@ -412,11 +631,34 @@ export default function FinalAssessmentDetailPage() {
                 </p>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-muted-foreground">
-                    {dimension.weight ?? 0}% weight
+                    up to {formatRubricPoints(dimension.maximumPoints)} points
                   </span>
-                  <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-primary">
-                    {dimension.score}%
-                  </span>
+                  {isEditingRubric ? (
+                    <label className="sr-only" htmlFor={`rubric-score-${dimension.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`}>
+                      {dimension.label} points
+                    </label>
+                  ) : null}
+                  {isEditingRubric ? (
+                    <input
+                      id={`rubric-score-${dimension.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`}
+                      type="number"
+                      min="0"
+                      max={dimension.maximumPoints}
+                      step="1"
+                      value={rubricPointDrafts[dimension.label] ?? ""}
+                      onChange={(event) =>
+                        setRubricPointDrafts((current) => ({
+                          ...current,
+                          [dimension.label]: event.target.value,
+                        }))
+                      }
+                      className="w-20 rounded-xl border border-primary/20 bg-surface px-2 py-1 text-right text-xs font-semibold tabular-nums text-primary outline-none transition focus:border-primary focus:ring-4 focus:ring-ring/30"
+                    />
+                  ) : (
+                    <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-primary">
+                      {formatRubricPoints(dimension.earnedPoints)} / {formatRubricPoints(dimension.maximumPoints)}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="mt-3 h-2 rounded-full bg-surface">
@@ -428,27 +670,192 @@ export default function FinalAssessmentDetailPage() {
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 {dimension.summary}
               </p>
-              {dimension.evidence?.length > 0 && (
-                <div className="mt-3 space-y-2 border-t border-primary/15 pt-3">
-                  {dimension.evidence.map((excerpt) => (
-                    <p key={excerpt} className="text-xs leading-5 text-muted-foreground">
-                      “{excerpt}”
-                    </p>
-                  ))}
-                </div>
-              )}
             </div>
           ))}
         </div>
+        <div className="mt-5 flex items-center justify-between gap-4 border-t border-primary/15 pt-4">
+          <p className="text-sm font-semibold text-foreground">Rubric total</p>
+          <p className="text-lg font-semibold tabular-nums text-primary">
+            {formatRubricPoints(rubricTotal)} / {formatRubricPoints(rubricMaximum)}
+          </p>
+        </div>
+        {isEditingRubric && (
+          <div className="mt-5 border-t border-primary/15 pt-5">
+            <label className="block space-y-2">
+              <span className="text-sm font-semibold text-muted-foreground">Review rationale (optional)</span>
+              <textarea
+                value={rubricOverrideReason}
+                onChange={(event) => setRubricOverrideReason(event.target.value)}
+                rows={3}
+                placeholder="Explain the transcript and objective evidence supporting these reviewed scores."
+                className="w-full resize-y rounded-2xl border border-border bg-surface-sunken px-4 py-3 text-sm leading-6 text-foreground outline-none transition focus:border-primary focus:bg-surface focus:ring-4 focus:ring-ring/30"
+              />
+            </label>
+          </div>
+        )}
+        {canDownloadTranscript && assessment.scoreOverride?.type === "rubric" && !isEditingRubric && (
+          <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-primary/15 pt-5">
+            <p className="text-sm text-muted-foreground">
+              Reviewed by {assessment.scoreOverride.overriddenBy.name} on {new Date(assessment.scoreOverride.overriddenAt).toLocaleDateString()}.
+            </p>
+            <button
+              type="button"
+              disabled={isSavingRubric}
+              onClick={() => void saveRubricOverride(true)}
+              className="text-sm font-semibold text-primary transition hover:text-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Restore AI rubric
+            </button>
+          </div>
+        )}
+        {canDownloadTranscript && assessment.scoreOverride && assessment.scoreOverride.type !== "rubric" && (
+          <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-primary/15 pt-5">
+            <p className="text-sm text-muted-foreground">
+              Overall score reviewed by {assessment.scoreOverride.overriddenBy.name} on {new Date(assessment.scoreOverride.overriddenAt).toLocaleDateString()}.
+            </p>
+            <button
+              type="button"
+              disabled={isSavingOverride}
+              onClick={() => void saveScoreOverride(true)}
+              className="text-sm font-semibold text-primary transition hover:text-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Restore AI score
+            </button>
+          </div>
+        )}
+        {rubricOverrideMessage && (
+          <p className="mt-3 text-sm font-medium text-muted-foreground">{rubricOverrideMessage}</p>
+        )}
       </section>
 
-      {assessment.criticalRisks?.length > 0 && (
-        <section className="rounded-3xl border border-danger/30 bg-danger-subtle p-6">
-          <h2 className="text-xl font-semibold text-danger-subtle-foreground">Critical review flags</h2>
-          <div className="mt-4 space-y-2 text-sm leading-6 text-danger-subtle-foreground">
-            {assessment.criticalRisks.map((risk) => <p key={risk}>{risk}</p>)}
+      {showOverallOverrideDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 px-4 py-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="overall-override-title"
+        >
+          <div className="w-full max-w-md rounded-3xl border border-border bg-surface p-6 shadow-overlay">
+            <h2 id="overall-override-title" className="text-2xl font-semibold tracking-tight text-foreground">
+              Override overall score
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Enter a final reviewed score from 0 to 100. This replaces any saved rubric override.
+            </p>
+            <label className="mt-5 block space-y-2">
+              <span className="text-sm font-semibold text-muted-foreground">Overall score</span>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={overrideScoreDraft}
+                onChange={(event) => setOverrideScoreDraft(event.target.value)}
+                className="w-full rounded-2xl border border-border bg-surface-sunken px-4 py-3 text-2xl font-semibold tabular-nums text-foreground outline-none transition focus:border-primary focus:bg-surface focus:ring-4 focus:ring-ring/30"
+              />
+            </label>
+            <label className="mt-4 block space-y-2">
+              <span className="text-sm font-semibold text-muted-foreground">Review rationale (optional)</span>
+              <textarea
+                value={overrideReasonDraft}
+                onChange={(event) => setOverrideReasonDraft(event.target.value)}
+                rows={3}
+                placeholder="Explain the transcript and objective evidence supporting this final score."
+                className="w-full resize-y rounded-2xl border border-border bg-surface-sunken px-4 py-3 text-sm leading-6 text-foreground outline-none transition focus:border-primary focus:bg-surface focus:ring-4 focus:ring-ring/30"
+              />
+            </label>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                disabled={isSavingOverride}
+                onClick={() => setShowOverallOverrideDialog(false)}
+                className="inline-flex min-h-control items-center justify-center rounded-2xl border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSavingOverride}
+                onClick={() => void saveScoreOverride()}
+                className="inline-flex min-h-control items-center justify-center rounded-2xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-raised transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSavingOverride ? "Saving score..." : "Save overall score"}
+              </button>
+            </div>
           </div>
-        </section>
+        </div>
+      )}
+
+      {showRubricConfirmDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 px-4 py-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-rubric-override-title"
+        >
+          <div className="w-full max-w-md rounded-3xl border border-border bg-surface p-6 shadow-overlay">
+            <h2 id="confirm-rubric-override-title" className="text-2xl font-semibold tracking-tight text-foreground">
+              Confirm rubric changes
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              These reviewed points will replace the AI rubric and automatically recalculate the learner&apos;s final score.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                disabled={isSavingRubric}
+                onClick={() => setShowRubricConfirmDialog(false)}
+                className="inline-flex min-h-control items-center justify-center rounded-2xl border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Keep editing
+              </button>
+              <button
+                type="button"
+                disabled={isSavingRubric}
+                onClick={() => void saveRubricOverride()}
+                className="inline-flex min-h-control items-center justify-center rounded-2xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-raised transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSavingRubric ? "Saving changes..." : "Confirm override"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showConfirmScoreDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 px-4 py-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-score-title"
+        >
+          <div className="w-full max-w-md rounded-3xl border border-border bg-surface p-6 shadow-overlay">
+            <h2 id="confirm-score-title" className="text-2xl font-semibold tracking-tight text-foreground">
+              Confirm final score
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Confirm {finalScore}% as this learner&apos;s final recorded score. This does not change the score.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                disabled={isConfirmingScore}
+                onClick={() => setShowConfirmScoreDialog(false)}
+                className="inline-flex min-h-control items-center justify-center rounded-2xl border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isConfirmingScore}
+                onClick={() => void confirmFinalScore()}
+                className="inline-flex min-h-control items-center justify-center rounded-2xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-raised transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isConfirmingScore ? "Confirming..." : "Confirm score"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <section className="grid gap-6 xl:grid-cols-2">

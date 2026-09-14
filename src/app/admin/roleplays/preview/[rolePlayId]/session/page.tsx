@@ -204,6 +204,10 @@ export default function RolePlayPreviewSessionPage() {
   const [showEndCallConfirm, setShowEndCallConfirm] = useState(false);
   const [transcriptSessionId, setTranscriptSessionId] = useState<string | null>(null);
   const [assessmentId, setAssessmentId] = useState<string | null>(null);
+  const [assessmentResult, setAssessmentResult] = useState<{
+    overallScore: number;
+    outcome: "passed" | "needs_review";
+  } | null>(null);
   const [assessmentStatus, setAssessmentStatus] = useState<"idle" | "saving" | "ready" | "error">(
     "idle",
   );
@@ -244,6 +248,10 @@ export default function RolePlayPreviewSessionPage() {
       sessionUser &&
       canUserTakeRolePlay(sessionUser, config) &&
       !canManageCurrentRolePlay,
+  );
+  const newestTranscript = useMemo(
+    () => [...normalizedTranscript].reverse(),
+    [normalizedTranscript],
   );
 
   useEffect(() => {
@@ -472,6 +480,7 @@ export default function RolePlayPreviewSessionPage() {
     setNormalizedTranscript([]);
     setTranscriptSessionId(null);
     setAssessmentId(null);
+    setAssessmentResult(null);
     setAssessmentStatus("idle");
     setAssessmentError(null);
     attemptRecordedRef.current = false;
@@ -635,6 +644,64 @@ export default function RolePlayPreviewSessionPage() {
     await Promise.allSettled(cleanupTasks);
   }
 
+  async function generateAssessmentForTranscript(
+    transcriptSessionId: string,
+    scenarioId: string,
+  ) {
+    const assessmentResponse = await fetch("/api/assessments/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ transcriptSessionId, scenarioId }),
+    });
+    const assessmentPayload = (await assessmentResponse.json()) as {
+      assessmentId?: string;
+      overallScore?: number;
+      outcome?: "passed" | "needs_review";
+      error?: string;
+      details?: string;
+    };
+
+    if (!assessmentResponse.ok) {
+      throw new Error(
+        assessmentPayload.details ??
+          assessmentPayload.error ??
+          `Final assessment failed with HTTP ${assessmentResponse.status}.`,
+      );
+    }
+    if (!assessmentPayload.assessmentId) {
+      throw new Error("Final assessment completed without a result identifier.");
+    }
+
+    setAssessmentId(assessmentPayload.assessmentId);
+    if (
+      typeof assessmentPayload.overallScore === "number" &&
+      (assessmentPayload.outcome === "passed" || assessmentPayload.outcome === "needs_review")
+    ) {
+      setAssessmentResult({
+        overallScore: assessmentPayload.overallScore,
+        outcome: assessmentPayload.outcome,
+      });
+    }
+  }
+
+  async function retryFinalAssessment() {
+    if (!config || !transcriptSessionId || assessmentStatus === "saving") return;
+
+    setAssessmentStatus("saving");
+    setAssessmentError(null);
+    try {
+      await generateAssessmentForTranscript(transcriptSessionId, config.id);
+      setAssessmentStatus("ready");
+    } catch (error) {
+      setAssessmentStatus("error");
+      setAssessmentError(
+        error instanceof Error ? error.message : "Unable to generate final assessment.",
+      );
+    }
+  }
+
   async function endVoiceRolePlay() {
     if (isEnding) return;
     setShowEndCallConfirm(false);
@@ -682,25 +749,7 @@ export default function RolePlayPreviewSessionPage() {
       }
 
       if (config && savedTranscriptSessionId) {
-        const assessmentResponse = await fetch("/api/assessments/generate", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            transcriptSessionId: savedTranscriptSessionId,
-            scenarioId: config.id,
-          }),
-        });
-
-        if (!assessmentResponse.ok) {
-          throw new Error(`Final assessment failed with HTTP ${assessmentResponse.status}.`);
-        }
-
-        const assessmentPayload = (await assessmentResponse.json()) as {
-          assessmentId?: string;
-        };
-        setAssessmentId(assessmentPayload.assessmentId ?? null);
+        await generateAssessmentForTranscript(savedTranscriptSessionId, config.id);
         setAssessmentStatus("ready");
       } else {
         setAssessmentStatus("error");
@@ -1132,6 +1181,16 @@ export default function RolePlayPreviewSessionPage() {
                   : assessmentStatus === "error"
                     ? (assessmentError ?? "Final assessment was not generated.")
                     : "Final assessment will be generated when the call ends."}
+              {assessmentStatus === "ready" && assessmentResult && (
+                <div className="mt-4 flex items-center justify-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-left">
+                  <span className="text-2xl font-semibold tabular-nums text-emerald-800">
+                    {assessmentResult.overallScore}%
+                  </span>
+                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                    {assessmentResult.outcome === "passed" ? "Passed" : "Needs review"}
+                  </span>
+                </div>
+              )}
               {transcriptSessionId && (
                 <p className="mt-2 text-xs text-slate-500">
                   Transcript session: {transcriptSessionId}
@@ -1146,6 +1205,15 @@ export default function RolePlayPreviewSessionPage() {
                 >
                   View Final Assessment
                 </Link>
+              )}
+              {assessmentStatus === "error" && transcriptSessionId && config && (
+                <button
+                  type="button"
+                  onClick={() => void retryFinalAssessment()}
+                  className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
+                >
+                  Retry final assessment
+                </button>
               )}
               {isTrackedLearner ? (
                 <>
@@ -1237,10 +1305,10 @@ export default function RolePlayPreviewSessionPage() {
       <header className="border-b border-white/70 bg-white/80 px-6 py-4 shadow-soft backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-primary">Role Play Test Session</p>
-          <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-950">
+          <h1 className="text-xl font-semibold tracking-tight text-slate-950">
             {config.settings.meetingTitle}
           </h1>
+          <p className="mt-1 text-sm text-slate-600">Live roleplay session</p>
         </div>
         <div className="flex items-center gap-3">
           <span className="rounded-2xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700">
@@ -1297,12 +1365,16 @@ export default function RolePlayPreviewSessionPage() {
         }`}
       >
         <section className="flex min-h-[calc(100vh-121px)] flex-col gap-5 pr-1">
-          <div className="relative grid min-h-[560px] flex-1 place-items-center overflow-hidden rounded-[2rem] border border-blue-100 bg-white shadow-soft">
-            <div className="grid place-items-center p-8 pb-44 text-center">
-              <div className="relative mx-auto h-44 w-44">
+          <div className="relative isolate grid min-h-[clamp(34rem,68vh,44rem)] flex-1 place-items-center overflow-hidden rounded-[1.75rem] bg-[#101a31] shadow-[0_28px_64px_-34px_rgba(15,23,42,0.72)]">
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(59,130,246,0.24),transparent_28%),radial-gradient(circle_at_18%_84%,rgba(14,165,233,0.14),transparent_25%)]"
+            />
+            <div className="relative z-10 grid place-items-center p-8 pb-44 text-center">
+              <div className="relative mx-auto h-48 w-48">
                 <div
                   className={`absolute inset-0 rounded-[2.75rem] border-[3px] transition-all duration-300 ${
-                    aiSpeaking ? "border-emerald-400" : "border-blue-200/80"
+                    aiSpeaking ? "border-emerald-300" : "border-blue-300/60"
                   }`}
                   style={{
                     boxShadow: aiSpeaking
@@ -1312,42 +1384,42 @@ export default function RolePlayPreviewSessionPage() {
                       : "none",
                   }}
                 />
-                <div className="absolute inset-5 rounded-[2.1rem] border border-cyan-100" />
+                <div className="absolute inset-5 rounded-[2.1rem] border border-blue-200/25" />
                 <div
-                  className="absolute inset-6 flex items-center justify-center rounded-[2rem] bg-[linear-gradient(135deg,#dbeafe,#60a5fa)] text-5xl font-semibold text-white shadow-lg shadow-blue-500/20"
+                  className="absolute inset-6 flex items-center justify-center rounded-[2rem] bg-[#e6f0ff] text-5xl font-semibold text-[#1459b8] shadow-[0_18px_42px_-24px_rgba(96,165,250,0.85)]"
                 >
                   {config.character.name.slice(0, 1).toUpperCase()}
                 </div>
                 <div
                   className={`absolute -bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold shadow-soft transition-all duration-300 ${
                     aiSpeaking
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border-slate-200 bg-white text-slate-500"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      : "border-slate-500 bg-slate-900 text-slate-200"
                   }`}
                 >
                   <span
                     className={`h-2 w-2 rounded-full transition-colors duration-300 ${
-                      aiSpeaking ? "bg-emerald-500" : "bg-slate-300"
+                      aiSpeaking ? "bg-emerald-500" : "bg-slate-400"
                     }`}
                   />
                   {aiSpeaking ? "Speaking" : "Listening"}
                 </div>
               </div>
-              <h2 className="mt-8 text-3xl font-semibold tracking-tight text-slate-950">
+              <h2 className="mt-8 text-3xl font-semibold tracking-tight text-white">
                 {config.character.name}
               </h2>
-              <p className="mt-2 text-sm font-medium text-primary">{config.character.role}</p>
-              <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+              <p className="mt-2 text-sm font-medium text-blue-200">{config.character.role}</p>
+              <p className="mt-2 text-xs font-semibold tracking-[0.08em] text-blue-100/80">
                 {aiSpeaking ? "AI customer speaking" : remoteAudioPublished ? "AI customer listening" : "Waiting for AI audio"}
               </p>
-              <div className="mt-5 flex flex-wrap items-center justify-center gap-3 text-xs font-semibold text-slate-500">
-                <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-blue-700">
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-xs font-semibold text-blue-100">
+                <span className="rounded-full border border-blue-200/20 bg-slate-950/25 px-3 py-1">
                   RTC: {connectionState}
                 </span>
-                <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-blue-700">
+                <span className="rounded-full border border-blue-200/20 bg-slate-950/25 px-3 py-1">
                   Agent audio: {remoteAudioPublished ? "published" : "waiting"}
                 </span>
-                <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-blue-700">
+                <span className="rounded-full border border-blue-200/20 bg-slate-950/25 px-3 py-1">
                   Mic: {isMicMuted ? "muted" : "live"}
                 </span>
               </div>
@@ -1421,23 +1493,21 @@ export default function RolePlayPreviewSessionPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-blue-100 bg-white p-5 shadow-soft">
+          <section aria-labelledby="live-transcript-heading" className="rounded-[1.5rem] border border-blue-100 bg-white p-5 shadow-soft">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-                  Full transcription
-                </p>
-                <h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-950">
-                  Conversation history
+                <h2 id="live-transcript-heading" className="text-lg font-semibold tracking-tight text-slate-950">
+                  Live transcript
                 </h2>
+                <p className="mt-1 text-sm text-slate-600">Newest speech appears first.</p>
               </div>
               <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
                 {normalizedTranscript.length} turn{normalizedTranscript.length === 1 ? "" : "s"}
               </span>
             </div>
-            <div className="mt-4 space-y-3">
-              {normalizedTranscript.length > 0 ? (
-                normalizedTranscript.map((entry) => {
+            <div className="mt-4 max-h-[34rem] space-y-3 overflow-y-auto pr-1">
+              {newestTranscript.length > 0 ? (
+                newestTranscript.map((entry) => {
                   const isAi = entry.speaker_type === "customer_ai";
                   return (
                     <div
@@ -1476,7 +1546,7 @@ export default function RolePlayPreviewSessionPage() {
                 </div>
               )}
             </div>
-          </div>
+          </section>
         </section>
 
         {guideOpen && (

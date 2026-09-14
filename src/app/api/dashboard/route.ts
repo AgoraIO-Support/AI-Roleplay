@@ -170,7 +170,13 @@ export async function GET() {
       session.role === "course_admin"
         ? roleplays.filter((roleplay) => roleplay.createdBy?.id === session.id)
         : [];
-    const completedScenarioIds = new Set(learnerAssessments.map((assessment) => assessment.scenarioId));
+    const assignedCourseIds = new Set(assignedRoleplays.map((roleplay) => roleplay.id));
+    // Historical or unassigned assessment attempts must not inflate assigned-course progress.
+    const completedAssignedScenarioIds = new Set(
+      learnerAssessments
+        .map((assessment) => assessment.scenarioId)
+        .filter((scenarioId) => assignedCourseIds.has(scenarioId)),
+    );
     const passed = learnerAssessments.filter((assessment) => assessment.outcome === "passed").length;
 
     return NextResponse.json({
@@ -178,8 +184,8 @@ export async function GET() {
       user: session,
       metrics: {
         assignedCourses: assignedRoleplays.length,
-        completedCourses: completedScenarioIds.size,
-        remainingCourses: Math.max(0, assignedRoleplays.length - completedScenarioIds.size),
+        completedCourses: completedAssignedScenarioIds.size,
+        remainingCourses: Math.max(0, assignedRoleplays.length - completedAssignedScenarioIds.size),
         assessments: learnerAssessments.length,
         averageScore: average(learnerAssessments.map((assessment) => assessment.overallScore)),
         passed,
@@ -188,7 +194,7 @@ export async function GET() {
       },
       assignedCourses: assignedRoleplays.slice(0, 6).map((roleplay) => ({
         ...summarizeRoleplay(roleplay),
-        completed: completedScenarioIds.has(roleplay.id),
+        completed: completedAssignedScenarioIds.has(roleplay.id),
         maxAttempts: maxTraineeRolePlayAttempts,
       })),
       createdCourses: createdRoleplays.slice(0, 4).map(summarizeRoleplay),

@@ -19,6 +19,17 @@ export type AssessmentScoreOverride = {
     name: string;
     email: string;
   };
+  type?: "overall" | "rubric";
+  dimensions?: Array<{
+    label: string;
+    points: number;
+  }>;
+  confirmedAt?: string;
+  confirmedBy?: {
+    id: string;
+    name: string;
+    email: string;
+  };
 };
 
 export type TranscriptTurn = {
@@ -77,6 +88,7 @@ export type GenerateAssessmentInput = {
   learnerName?: string;
   learnerEmail?: string;
   learnerRole?: string;
+  passingScore?: number;
   objectives: Objective[];
   transcript: TranscriptEntry[];
 };

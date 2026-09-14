@@ -33,6 +33,8 @@ export type RolePlayConfig = {
   };
   settings: {
     meetingTitle: string;
+    // Optional preserves compatibility with courses created before pass thresholds were configurable.
+    passingScore?: number;
     durationMinutes: number;
     learnerGoals: Objective[];
     aiCustomerKeyPoints?: string[];

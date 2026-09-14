@@ -49,6 +49,7 @@ export async function POST(request: Request) {
       learnerName: session.name,
       learnerEmail: session.email,
       learnerRole: roleplay.plan.learnerRole,
+      passingScore: roleplay.settings.passingScore ?? 75,
       objectives: roleplay.settings.learnerGoals,
       transcript: transcriptSession.transcript,
     };

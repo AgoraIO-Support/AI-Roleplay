@@ -83,12 +83,15 @@ export default async function ProfilePage() {
   const personalAssessments = assessments.filter(
     (assessment) => assessment.learnerId === session.id,
   );
+  const assignedCourseIds = new Set(assignedCourses.map((course) => course.id));
   const managedCourseIds = new Set(managedCourses.map((course) => course.id));
   const managedAssessments = assessments.filter((assessment) =>
     managedCourseIds.has(assessment.scenarioId),
   );
-  const completedCourseIds = new Set(
-    personalAssessments.map((assessment) => assessment.scenarioId),
+  const completedAssignedCourseIds = new Set(
+    personalAssessments
+      .map((assessment) => assessment.scenarioId)
+      .filter((scenarioId) => assignedCourseIds.has(scenarioId)),
   );
   const recentPersonalAssessments = personalAssessments.slice(0, 4);
   const averageScore = average(
@@ -138,11 +141,11 @@ export default async function ProfilePage() {
           {
             label: "Assigned Courses",
             value: assignedCourses.length.toString(),
-            helper: `${Math.max(0, assignedCourses.length - completedCourseIds.size)} remaining`,
+            helper: `${Math.max(0, assignedCourses.length - completedAssignedCourseIds.size)} remaining`,
           },
           {
             label: "Completed Courses",
-            value: completedCourseIds.size.toString(),
+            value: completedAssignedCourseIds.size.toString(),
             helper: "Unique simulations",
           },
           {

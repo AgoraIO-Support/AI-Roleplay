@@ -511,8 +511,11 @@ function LearnerStatCard({
 function LearnerDashboard({ data }: { data: LearnerDashboardData }) {
   const completionRate = useMemo(() => {
     if (data.metrics.assignedCourses === 0) return null;
-    return Math.round(
-      (data.metrics.completedCourses / data.metrics.assignedCourses) * 100,
+    return Math.min(
+      100,
+      Math.round(
+        (data.metrics.completedCourses / data.metrics.assignedCourses) * 100,
+      ),
     );
   }, [data.metrics.assignedCourses, data.metrics.completedCourses]);
   const latestAssessment = data.recentAssessments[0];

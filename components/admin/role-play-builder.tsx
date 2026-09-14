@@ -47,6 +47,59 @@ const defaultObjectives: Objective[] = [
   },
 ];
 
+const defaultPassingScore = 75;
+
+type RequiredPublishField =
+  | "scenario"
+  | "learnerRole"
+  | "characterRole"
+  | "greetingMessage"
+  | "meetingTitle"
+  | "passingScore"
+  | "learnerGoals";
+
+const requiredPublishFieldLabels: Record<RequiredPublishField, string> = {
+  scenario: "Scenario",
+  learnerRole: "Learner Role",
+  characterRole: "Character Role",
+  greetingMessage: "Greeting Message",
+  meetingTitle: "Meeting Title",
+  passingScore: "Passing Score",
+  learnerGoals: "Learner Goals / Objectives",
+};
+
+const requiredPublishFieldSteps: Record<RequiredPublishField, number> = {
+  scenario: 0,
+  learnerRole: 0,
+  characterRole: 1,
+  greetingMessage: 1,
+  meetingTitle: 2,
+  passingScore: 2,
+  learnerGoals: 2,
+};
+
+function isValidPassingScore(value: string) {
+  const score = Number(value);
+  return Number.isInteger(score) && score >= 1 && score <= 100;
+}
+
+function RequiredFieldLabel({ children }: { children: string }) {
+  return (
+    <span className="text-sm font-medium text-muted-foreground">
+      {children} <span aria-hidden="true" className="text-danger">*</span>
+      <span className="sr-only"> required</span>
+    </span>
+  );
+}
+
+function builderFieldClassName(isInvalid = false) {
+  return `w-full rounded-2xl border bg-surface-sunken/80 px-4 py-3 text-sm text-foreground outline-none transition focus:bg-surface focus:ring-4 ${
+    isInvalid
+      ? "border-danger/60 focus:border-danger focus:ring-danger/20"
+      : "border-primary/20 focus:border-primary focus:ring-ring/30"
+  }`;
+}
+
 const steps = [
   "Plan Role Play",
   "AI Character Customization",
@@ -206,6 +259,7 @@ export function RolePlayBuilder({
   const [meetingTitle, setMeetingTitle] = useState(
     "Escalated Video Quality Support Call",
   );
+  const [passingScore, setPassingScore] = useState(String(defaultPassingScore));
   const [durationMinutes, setDurationMinutes] = useState(8);
   const [deadlineDateTimeUtc, setDeadlineDateTimeUtc] = useState("");
   const [deadlineTimezone, setDeadlineTimezone] = useState("UTC");
@@ -219,6 +273,7 @@ export function RolePlayBuilder({
   );
   const [assignedTraineeIds, setAssignedTraineeIds] = useState<string[]>([]);
   const [trainees, setTrainees] = useState<AssignableTrainee[]>([]);
+  const [learnerSearch, setLearnerSearch] = useState("");
   const [traineeLoadError, setTraineeLoadError] = useState<string | null>(null);
   const [showTranscriptGenerator, setShowTranscriptGenerator] = useState(false);
   const [transcriptText, setTranscriptText] = useState("");
@@ -239,6 +294,18 @@ export function RolePlayBuilder({
   const [builderActionPhase, setBuilderActionPhase] =
     useState<BuilderActionPhase>("loading");
   const [actionProgress, setActionProgress] = useState(0);
+  const [showPublishValidation, setShowPublishValidation] = useState(false);
+
+  const matchingTrainees = useMemo(() => {
+    const query = learnerSearch.trim().toLowerCase();
+    if (!query) return trainees;
+
+    return trainees.filter((trainee) =>
+      [trainee.name, trainee.email, trainee.role].some((value) =>
+        value.toLowerCase().includes(query),
+      ),
+    );
+  }, [learnerSearch, trainees]);
 
   useEffect(() => {
     void fetchCurrentUser().then(setCurrentUser);
@@ -370,6 +437,7 @@ export function RolePlayBuilder({
         setOriginalCallSummary(stored.settings.originalCallSummary ?? "");
         setAiCustomerBehavior(stored.settings.aiCustomerBehavior ?? "");
         setMeetingTitle(stored.settings.meetingTitle);
+        setPassingScore(String(stored.settings.passingScore ?? defaultPassingScore));
         setDurationMinutes(stored.settings.durationMinutes);
         setDeadlineDateTimeUtc(
           isoToUtcDateTimeInput(stored.settings.deadlineAt),
@@ -460,6 +528,9 @@ export function RolePlayBuilder({
       },
       settings: {
         meetingTitle,
+        passingScore: isValidPassingScore(passingScore)
+          ? Number(passingScore)
+          : defaultPassingScore,
         durationMinutes,
         learnerGoals,
         aiCustomerKeyPoints: linesToList(aiCustomerKeyPointsText),
@@ -489,6 +560,21 @@ export function RolePlayBuilder({
     status: RolePlayStatus,
     action: BuilderAction = status === "published" ? "publish" : "draft",
   ) {
+    if (status === "published" && action === "publish") {
+      setShowPublishValidation(true);
+      const missingFields = requiredPublishFields();
+
+      if (missingFields.length > 0) {
+        setStep(requiredPublishFieldSteps[missingFields[0]]);
+        setDraftMessage(
+          `Complete the required fields before publishing: ${missingFields
+            .map((field) => requiredPublishFieldLabels[field])
+            .join(", ")}.`,
+        );
+        return null;
+      }
+    }
+
     setActiveBuilderAction(action);
     setBuilderActionPhase("loading");
     setDraftMessage(null);
@@ -521,6 +607,8 @@ export function RolePlayBuilder({
 
   async function previewRolePlay() {
     const config = await save(currentStatus, "preview");
+    if (!config) return;
+
     window.setTimeout(() => {
       setPreviewConfig(config);
       router.push(`/course-builder?preview=${config.id}`);
@@ -532,6 +620,22 @@ export function RolePlayBuilder({
   function startPreviewRolePlay(config: RolePlayConfig) {
     saveStoredRolePlayConfig(config);
     router.push(`/admin/roleplays/preview/${config.id}/session`);
+  }
+
+  function requiredPublishFields(): RequiredPublishField[] {
+    const missingFields: RequiredPublishField[] = [];
+
+    if (!scenario.trim()) missingFields.push("scenario");
+    if (!learnerRole.trim()) missingFields.push("learnerRole");
+    if (!characterRole.trim()) missingFields.push("characterRole");
+    if (!greetingMessage.trim()) missingFields.push("greetingMessage");
+    if (!meetingTitle.trim()) missingFields.push("meetingTitle");
+    if (!isValidPassingScore(passingScore)) missingFields.push("passingScore");
+    if (learnerGoals.length === 0 || learnerGoals.some((goal) => !goal.label.trim())) {
+      missingFields.push("learnerGoals");
+    }
+
+    return missingFields;
   }
 
   function addObjective() {
@@ -669,6 +773,11 @@ export function RolePlayBuilder({
   }
 
   const progressPercent = Math.round(((step + 1) / steps.length) * 100);
+  const invalidPublishFields = showPublishValidation
+    ? requiredPublishFields()
+    : [];
+  const isPublishFieldInvalid = (field: RequiredPublishField) =>
+    invalidPublishFields.includes(field);
   const isFinalStep = step === steps.length - 1;
   const isBuilderActionRunning = Boolean(activeBuilderAction);
   const activeBuilderActionLabel =
@@ -1054,6 +1163,16 @@ export function RolePlayBuilder({
 
         <main className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <section className="rounded-3xl border border-primary/20 bg-surface p-6 shadow-soft">
+            {invalidPublishFields.some(
+              (field) => requiredPublishFieldSteps[field] === step,
+            ) && (
+              <div
+                className="mb-5 rounded-2xl border border-danger/30 bg-danger-subtle px-4 py-3 text-sm leading-6 text-danger-subtle-foreground"
+                role="alert"
+              >
+                Complete the highlighted required fields before publishing this course.
+              </div>
+            )}
             {step === 0 && (
               <div className="space-y-5">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -1176,14 +1295,13 @@ export function RolePlayBuilder({
                   </div>
                 )}
                 <label className="block space-y-2">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Scenario
-                  </span>
+                  <RequiredFieldLabel>Scenario</RequiredFieldLabel>
                   <textarea
                     value={scenario}
                     onChange={(event) => setScenario(event.target.value)}
                     rows={8}
-                    className="w-full rounded-2xl border border-primary/20 bg-surface-sunken/80 px-4 py-3 text-sm leading-6 text-foreground outline-none transition focus:border-primary focus:bg-surface focus:ring-4 focus:ring-ring/30"
+                    aria-invalid={isPublishFieldInvalid("scenario") || undefined}
+                    className={`${builderFieldClassName(isPublishFieldInvalid("scenario"))} leading-6`}
                   />
                 </label>
                 <label className="block space-y-2">
@@ -1206,13 +1324,12 @@ export function RolePlayBuilder({
                   </span>
                 </label>
                 <label className="block space-y-2">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Learner Role
-                  </span>
+                  <RequiredFieldLabel>Learner Role</RequiredFieldLabel>
                   <input
                     value={learnerRole}
                     onChange={(event) => setLearnerRole(event.target.value)}
-                    className="w-full rounded-2xl border border-primary/20 bg-surface-sunken/80 px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary focus:bg-surface focus:ring-4 focus:ring-ring/30"
+                    aria-invalid={isPublishFieldInvalid("learnerRole") || undefined}
+                    className={builderFieldClassName(isPublishFieldInvalid("learnerRole"))}
                   />
                 </label>
               </div>
@@ -1267,13 +1384,12 @@ export function RolePlayBuilder({
                     />
                   </label>
                   <label className="block space-y-2">
-                    <span className="text-sm font-medium text-muted-foreground">
-                      Character Role
-                    </span>
+                    <RequiredFieldLabel>Character Role</RequiredFieldLabel>
                     <input
                       value={characterRole}
                       onChange={(event) => setCharacterRole(event.target.value)}
-                      className="w-full rounded-2xl border border-primary/20 bg-surface-sunken/80 px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary focus:bg-surface focus:ring-4 focus:ring-ring/30"
+                      aria-invalid={isPublishFieldInvalid("characterRole") || undefined}
+                      className={builderFieldClassName(isPublishFieldInvalid("characterRole"))}
                     />
                   </label>
                 </div>
@@ -1291,14 +1407,13 @@ export function RolePlayBuilder({
                   />
                 </label>
                 <label className="block space-y-2">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Greeting Message
-                  </span>
+                  <RequiredFieldLabel>Greeting Message</RequiredFieldLabel>
                   <textarea
                     value={greetingMessage}
                     onChange={(event) => setGreetingMessage(event.target.value)}
                     rows={3}
-                    className="w-full rounded-2xl border border-primary/20 bg-surface-sunken/80 px-4 py-3 text-sm leading-6 text-foreground outline-none transition focus:border-primary focus:bg-surface focus:ring-4 focus:ring-ring/30"
+                    aria-invalid={isPublishFieldInvalid("greetingMessage") || undefined}
+                    className={`${builderFieldClassName(isPublishFieldInvalid("greetingMessage"))} leading-6`}
                   />
                 </label>
               </div>
@@ -1353,15 +1468,28 @@ export function RolePlayBuilder({
                     )}
                   </div>
                 )}
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   <label className="block space-y-2">
-                    <span className="text-sm font-medium text-muted-foreground">
-                      Meeting Title
-                    </span>
+                    <RequiredFieldLabel>Meeting Title</RequiredFieldLabel>
                     <input
                       value={meetingTitle}
                       onChange={(event) => setMeetingTitle(event.target.value)}
-                      className="w-full rounded-2xl border border-primary/20 bg-surface-sunken/80 px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary focus:bg-surface focus:ring-4 focus:ring-ring/30"
+                      aria-invalid={isPublishFieldInvalid("meetingTitle") || undefined}
+                      className={builderFieldClassName(isPublishFieldInvalid("meetingTitle"))}
+                    />
+                  </label>
+                  <label className="block space-y-2">
+                    <RequiredFieldLabel>Passing Score</RequiredFieldLabel>
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      step="1"
+                      inputMode="numeric"
+                      value={passingScore}
+                      onChange={(event) => setPassingScore(event.target.value)}
+                      aria-invalid={isPublishFieldInvalid("passingScore") || undefined}
+                      className={builderFieldClassName(isPublishFieldInvalid("passingScore"))}
                     />
                   </label>
                   <label className="block space-y-2">
@@ -1417,11 +1545,18 @@ export function RolePlayBuilder({
                   </label>
                 </div>
 
-                <div className="space-y-3 rounded-2xl border border-primary/20 bg-primary-subtle/50 p-4">
+                <div
+                  className={`space-y-3 rounded-2xl border p-4 ${
+                    isPublishFieldInvalid("learnerGoals")
+                      ? "border-danger/50 bg-danger-subtle/35"
+                      : "border-primary/20 bg-primary-subtle/50"
+                  }`}
+                >
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-foreground">
-                        Learner Goals / Objectives
+                        Learner Goals / Objectives <span aria-hidden="true" className="text-danger">*</span>
+                        <span className="sr-only"> required</span>
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         Required goals power live tracking during the roleplay
@@ -1448,7 +1583,14 @@ export function RolePlayBuilder({
                             label: event.target.value,
                           })
                         }
-                        className="rounded-xl border border-primary/20 bg-surface-sunken/80 px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:bg-surface focus:ring-4 focus:ring-ring/30"
+                        aria-invalid={
+                          (isPublishFieldInvalid("learnerGoals") && !goal.label.trim()) || undefined
+                        }
+                        className={`rounded-xl border bg-surface-sunken/80 px-3 py-2 text-sm text-foreground outline-none transition focus:bg-surface focus:ring-4 ${
+                          isPublishFieldInvalid("learnerGoals") && !goal.label.trim()
+                            ? "border-danger/60 focus:border-danger focus:ring-danger/20"
+                            : "border-primary/20 focus:border-primary focus:ring-ring/30"
+                        }`}
                       />
                       <div className="flex items-center justify-between gap-3">
                         <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
@@ -1506,8 +1648,23 @@ export function RolePlayBuilder({
                   )}
 
                   {trainees.length > 0 && (
-                    <div className="grid gap-2">
-                      {trainees.map((trainee) => (
+                    <div>
+                      <label className="sr-only" htmlFor="assign-learners-search">
+                        Search assignable users
+                      </label>
+                      <input
+                        id="assign-learners-search"
+                        type="search"
+                        value={learnerSearch}
+                        onChange={(event) => setLearnerSearch(event.target.value)}
+                        placeholder="Search by name or email"
+                        className="w-full rounded-xl border border-border bg-surface-sunken/80 px-3 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:bg-surface focus:ring-4 focus:ring-ring/30"
+                      />
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {matchingTrainees.length} of {trainees.length} assignable users shown
+                      </p>
+                      <div className="mt-3 grid max-h-80 gap-2 overflow-y-auto pr-1">
+                      {matchingTrainees.map((trainee) => (
                         <label
                           key={trainee.id}
                           className="flex items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-primary-subtle/50 p-3"
@@ -1538,6 +1695,12 @@ export function RolePlayBuilder({
                           />
                         </label>
                       ))}
+                      {matchingTrainees.length === 0 && (
+                        <div className="rounded-2xl border border-dashed border-border bg-surface-sunken p-4 text-sm text-muted-foreground">
+                          No assignable users match "{learnerSearch.trim()}".
+                        </div>
+                      )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1621,7 +1784,13 @@ export function RolePlayBuilder({
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
             {draftMessage && !isBuilderActionRunning ? (
-              <p className="rounded-2xl border border-primary/20 bg-primary-subtle px-4 py-2 text-sm font-medium text-primary">
+              <p
+                className={`rounded-2xl border px-4 py-2 text-sm font-medium ${
+                  invalidPublishFields.length > 0
+                    ? "border-danger/30 bg-danger-subtle text-danger-subtle-foreground"
+                    : "border-primary/20 bg-primary-subtle text-primary"
+                }`}
+              >
                 {draftMessage}
               </p>
             ) : !isFinalStep ? (
