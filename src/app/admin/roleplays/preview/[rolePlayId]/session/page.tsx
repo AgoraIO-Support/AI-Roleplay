@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type {
@@ -178,6 +178,7 @@ function captionSnippet(text: string) {
 
 export default function RolePlayPreviewSessionPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const params = useParams<{ rolePlayId: string }>();
   const rolePlayId = params.rolePlayId;
   const [config, setConfig] = useState<RolePlayConfig | null>(null);
@@ -243,11 +244,13 @@ export default function RolePlayPreviewSessionPage() {
   const canManageCurrentRolePlay = Boolean(
     config && sessionUser && canUserManageRolePlay(sessionUser, config),
   );
+  const isPreviewSession =
+    pathname.startsWith("/admin/roleplays/preview/") || canManageCurrentRolePlay;
   const isTrackedLearner = Boolean(
     config &&
       sessionUser &&
       canUserTakeRolePlay(sessionUser, config) &&
-      !canManageCurrentRolePlay,
+      !isPreviewSession,
   );
   const newestTranscript = useMemo(
     () => [...normalizedTranscript].reverse(),
@@ -707,7 +710,7 @@ export default function RolePlayPreviewSessionPage() {
     setShowEndCallConfirm(false);
     setIsEnding(true);
     setSimulationState("ending");
-    setAssessmentStatus("saving");
+    setAssessmentStatus(isPreviewSession ? "idle" : "saving");
     setAssessmentError(null);
 
     const transcriptEntries: TranscriptEntry[] = normalizedTranscript.map((entry) => ({
@@ -722,7 +725,7 @@ export default function RolePlayPreviewSessionPage() {
     let savedTranscriptSessionId: string | null = null;
 
     try {
-      if (config && transcriptEntries.length > 0) {
+      if (!isPreviewSession && config && transcriptEntries.length > 0) {
         const transcriptResponse = await fetch("/api/transcripts/save", {
           method: "POST",
           headers: {
@@ -748,10 +751,10 @@ export default function RolePlayPreviewSessionPage() {
         setTranscriptSessionId(savedTranscriptSessionId);
       }
 
-      if (config && savedTranscriptSessionId) {
+      if (!isPreviewSession && config && savedTranscriptSessionId) {
         await generateAssessmentForTranscript(savedTranscriptSessionId, config.id);
         setAssessmentStatus("ready");
-      } else {
+      } else if (!isPreviewSession) {
         setAssessmentStatus("error");
         setAssessmentError("No transcript was captured, so no final assessment was generated.");
       }
@@ -1063,7 +1066,7 @@ export default function RolePlayPreviewSessionPage() {
               </button>
               <Link
                 href="/courses"
-                className="rounded-2xl border border-blue-100 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-soft transition hover:bg-blue-50"
+                className="rounded-2xl border border-blue-100 bg-white px-5 py-3 text-sm font-semibold text-blue-950 shadow-soft transition hover:bg-blue-50"
               >
                 Back to Courses
               </Link>
@@ -1149,17 +1152,18 @@ export default function RolePlayPreviewSessionPage() {
               Simulation Ended
             </p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
-              Session Completed
+              {isPreviewSession ? "Preview Completed" : "Session Completed"}
             </h1>
             <p className="mt-4 text-sm leading-7 text-slate-600">
-              The roleplay call has ended. The final assessment will validate objective coverage
-              from the full transcript instead of relying on live checklist ticks.
+              {isPreviewSession
+                ? "The customer-agent preview has ended. This practice call did not create a transcript, learner attempt, or assessment result."
+                : "The roleplay call has ended. The final assessment will validate objective coverage from the full transcript instead of relying on live checklist ticks."}
             </p>
-            <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-slate-700">
+            <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-blue-950">
               <span className="font-semibold text-slate-950">
                 {requiredGoals.length}
               </span>{" "}
-              required learner goals used for final assessment.{" "}
+              required learner goals {isPreviewSession ? "shown in this preview." : "used for final assessment."}{" "}
               <span className="font-semibold text-slate-950">
                 {learnerGoals.length}
               </span>{" "}
@@ -1173,32 +1177,34 @@ export default function RolePlayPreviewSessionPage() {
                 </p>
               )}
             </div>
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-              {assessmentStatus === "ready" && assessmentId
-                ? "Final assessment generated and ready to review."
-                : assessmentStatus === "saving"
-                  ? "Saving transcript and generating final assessment..."
-                  : assessmentStatus === "error"
-                    ? (assessmentError ?? "Final assessment was not generated.")
-                    : "Final assessment will be generated when the call ends."}
-              {assessmentStatus === "ready" && assessmentResult && (
-                <div className="mt-4 flex items-center justify-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-left">
-                  <span className="text-2xl font-semibold tabular-nums text-emerald-800">
-                    {assessmentResult.overallScore}%
-                  </span>
-                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                    {assessmentResult.outcome === "passed" ? "Passed" : "Needs review"}
-                  </span>
-                </div>
-              )}
-              {transcriptSessionId && (
-                <p className="mt-2 text-xs text-slate-500">
-                  Transcript session: {transcriptSessionId}
-                </p>
-              )}
-            </div>
+            {!isPreviewSession && (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                {assessmentStatus === "ready" && assessmentId
+                  ? "Final assessment generated and ready to review."
+                  : assessmentStatus === "saving"
+                    ? "Saving transcript and generating final assessment..."
+                    : assessmentStatus === "error"
+                      ? (assessmentError ?? "Final assessment was not generated.")
+                      : "Final assessment will be generated when the call ends."}
+                {assessmentStatus === "ready" && assessmentResult && (
+                  <div className="mt-4 flex items-center justify-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-left">
+                    <span className="text-2xl font-semibold tabular-nums text-emerald-800">
+                      {assessmentResult.overallScore}%
+                    </span>
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                      {assessmentResult.outcome === "passed" ? "Passed" : "Needs review"}
+                    </span>
+                  </div>
+                )}
+                {transcriptSessionId && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Transcript session: {transcriptSessionId}
+                  </p>
+                )}
+              </div>
+            )}
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-              {assessmentId && (
+              {!isPreviewSession && assessmentId && (
                 <Link
                   href={`/assessment/${assessmentId}`}
                   className="rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-600"
@@ -1206,7 +1212,7 @@ export default function RolePlayPreviewSessionPage() {
                   View Final Assessment
                 </Link>
               )}
-              {assessmentStatus === "error" && transcriptSessionId && config && (
+              {!isPreviewSession && assessmentStatus === "error" && transcriptSessionId && config && (
                 <button
                   type="button"
                   onClick={() => void retryFinalAssessment()}
@@ -1246,7 +1252,7 @@ export default function RolePlayPreviewSessionPage() {
                 <>
                   <Link
                     href={`/course-builder?preview=${config.id}`}
-                    className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-blue-50"
+                    className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-blue-950 transition hover:bg-blue-50"
                   >
                     Back to Preview
                   </Link>
@@ -1271,21 +1277,22 @@ export default function RolePlayPreviewSessionPage() {
               ?
             </div>
             <p className="mt-5 text-xs uppercase tracking-[0.28em] text-primary">
-              End Role Play
+              {isPreviewSession ? "End Preview" : "End Role Play"}
             </p>
             <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
               Do you want to end the call?
             </h2>
             <p className="mt-4 text-sm leading-7 text-slate-600">
-              If you are happy with the overall conversation, ending now will stop the AI customer
-              and leave the RTC channel for the trainee.
+              {isPreviewSession
+                ? "Ending now stops the AI customer and closes this ungraded customer-agent preview."
+                : "If you are happy with the overall conversation, ending now will stop the AI customer and leave the RTC channel for the trainee."}
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={() => setShowEndCallConfirm(false)}
                 disabled={isEnding}
-                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-blue-50 disabled:opacity-50"
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-blue-950 transition hover:bg-blue-50 disabled:opacity-50"
               >
                 Continue Call
               </button>
@@ -1295,7 +1302,7 @@ export default function RolePlayPreviewSessionPage() {
                 disabled={isEnding}
                 className="rounded-2xl bg-rose-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-500/20 transition hover:bg-rose-600 disabled:opacity-50"
               >
-                {isEnding ? "Ending..." : "Yes, End Call"}
+                {isEnding ? "Ending..." : isPreviewSession ? "End Preview" : "Yes, End Call"}
               </button>
             </div>
           </div>
@@ -1308,7 +1315,9 @@ export default function RolePlayPreviewSessionPage() {
           <h1 className="text-xl font-semibold tracking-tight text-slate-950">
             {config.settings.meetingTitle}
           </h1>
-          <p className="mt-1 text-sm text-slate-600">Live roleplay session</p>
+          <p className="mt-1 text-sm text-slate-600">
+            {isPreviewSession ? "Customer-agent preview - not graded" : "Live roleplay session"}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <span className="rounded-2xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700">
@@ -1324,14 +1333,14 @@ export default function RolePlayPreviewSessionPage() {
           <button
             type="button"
             onClick={() => setGuideOpen((current) => !current)}
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-soft transition hover:border-blue-200 hover:bg-blue-50"
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-blue-950 shadow-soft transition hover:border-blue-200 hover:bg-blue-50"
           >
             Guide
           </button>
           <button
             type="button"
             onClick={() => setCaptionsOpen((current) => !current)}
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-soft transition hover:border-blue-200 hover:bg-blue-50"
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-blue-950 shadow-soft transition hover:border-blue-200 hover:bg-blue-50"
           >
             Closed Captions
           </button>
@@ -1341,7 +1350,7 @@ export default function RolePlayPreviewSessionPage() {
             disabled={callStatus !== "In Call" || controlsLocked}
             className={`rounded-2xl border px-4 py-2 text-sm font-semibold shadow-soft transition disabled:opacity-50 ${
               isMicMuted
-                ? "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50"
+                ? "border-slate-200 bg-white text-blue-950 hover:border-blue-200 hover:bg-blue-50"
                 : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
             }`}
           >
@@ -1353,7 +1362,7 @@ export default function RolePlayPreviewSessionPage() {
             disabled={isEnding || callStatus === "Ended" || controlsLocked}
             className="rounded-2xl bg-rose-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-rose-500/20 transition hover:bg-rose-600 disabled:opacity-50"
           >
-            {isEnding ? "Ending..." : "End Role Play"}
+            {isEnding ? "Ending..." : isPreviewSession ? "End Preview" : "End Role Play"}
           </button>
         </div>
         </div>
@@ -1451,7 +1460,7 @@ export default function RolePlayPreviewSessionPage() {
                   onClick={() => startVoiceRolePlay(config)}
                   className="pointer-events-auto rounded-full bg-primary px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700"
                 >
-                  Start Voice Role Play
+                  {isPreviewSession ? "Start Customer Preview" : "Start Voice Role Play"}
                 </button>
               ) : (
                 <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-white/70 bg-white/90 p-2 shadow-[0_18px_52px_-28px_rgba(15,23,42,0.75)] backdrop-blur-xl">
@@ -1556,7 +1565,7 @@ export default function RolePlayPreviewSessionPage() {
               <button
                 type="button"
                 onClick={() => setGuideOpen(false)}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-500 transition hover:bg-blue-50"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-blue-800 transition hover:bg-blue-50"
               >
                 Close
               </button>

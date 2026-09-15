@@ -37,6 +37,10 @@ function asRole(value: unknown): AppRole | null {
     : null;
 }
 
+function isTemporaryPassword(value: string) {
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8}$/.test(value);
+}
+
 export async function PATCH(request: Request, context: RouteContext) {
   const session = await getAuthSession();
   const { id } = await context.params;
@@ -104,7 +108,18 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   try {
-    const user = await changeAuthUserPassword(id, asString(body.password));
+    const password = asString(body.password);
+    if (!isTemporaryPassword(password)) {
+      return NextResponse.json(
+        {
+          error:
+            "Temporary passwords must be exactly 8 characters and include uppercase, lowercase, and a number.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const user = await changeAuthUserPassword(id, password);
     if (!user) {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
     }

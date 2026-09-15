@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import type { AuthSessionUser } from "@/src/lib/auth/session";
-import { visibleRoleplaysForUser } from "@/src/lib/roleplays/access";
+import {
+  canUserManageRolePlay,
+  visibleRoleplaysForUser,
+} from "@/src/lib/roleplays/access";
 import {
   fetchRolePlayAttemptStatus,
   type RolePlayAttemptStatus,
@@ -243,11 +246,17 @@ export function PublishedRoleplayCourses({
       ) : (
         <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
         {filteredRoleplays.map((roleplay) => {
+          const isManagedCourse = Boolean(
+            user && canUserManageRolePlay(user, roleplay),
+          );
           const attemptStatus =
-            user?.role === "trainee" || user?.role === "course_admin"
+            !isManagedCourse &&
+            (user?.role === "trainee" || user?.role === "course_admin")
               ? attemptsByRolePlayId[roleplay.id]
               : null;
-          const actionLabel = attemptStatus?.locked
+          const actionLabel = isManagedCourse
+            ? "Preview Customer"
+            : attemptStatus?.locked
             ? "Attempts Used"
             : attemptStatus && attemptStatus.completedAttempts > 0
               ? "Retake Role Play"
@@ -345,7 +354,11 @@ export function PublishedRoleplayCourses({
                 </button>
               ) : (
                 <Link
-                  href={`/roleplays/${roleplay.id}/session`}
+                  href={
+                    isManagedCourse
+                      ? `/admin/roleplays/preview/${roleplay.id}/session`
+                      : `/roleplays/${roleplay.id}/session`
+                  }
                   className="mt-auto inline-flex w-full items-center justify-center rounded-lg bg-primary min-h-control px-4 py-2 text-sm font-semibold text-primary-foreground shadow-raised transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   {actionLabel}

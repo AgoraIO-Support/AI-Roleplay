@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 
+import { getAuthSession } from "@/src/lib/auth/session";
 import type { Objective } from "@/src/lib/objectives/types";
+import {
+  canUserManageRolePlay,
+  canUserTakeRolePlay,
+} from "@/src/lib/roleplays/access";
+import { getRolePlayConfigById } from "@/src/lib/roleplays/serverStorage";
 import { saveTranscriptSession } from "@/src/lib/transcripts/storage";
 import type { TranscriptEntry } from "@/src/lib/transcripts/types";
 
@@ -85,6 +91,7 @@ function asTranscriptEntries(value: unknown): TranscriptEntry[] {
 }
 
 export async function POST(request: Request) {
+  const session = await getAuthSession();
   const body = (await request.json().catch(() => ({}))) as SaveBody;
   const scenarioId = asString(body.scenarioId);
   const scenarioTitle = asString(body.scenarioTitle);
@@ -99,11 +106,27 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!session) {
+    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  }
+
+  const roleplay = await getRolePlayConfigById(scenarioId);
+  if (
+    !roleplay ||
+    !canUserTakeRolePlay(session, roleplay) ||
+    canUserManageRolePlay(session, roleplay)
+  ) {
+    return NextResponse.json(
+      { error: "Customer-agent previews do not save learner transcripts." },
+      { status: 403 },
+    );
+  }
+
   if (status !== "completed") {
     return NextResponse.json({ error: "status must be completed." }, { status: 400 });
   }
 
-  const session = await saveTranscriptSession({
+  const transcriptSession = await saveTranscriptSession({
     scenarioId,
     scenarioTitle,
     status: "completed",
@@ -112,8 +135,7 @@ export async function POST(request: Request) {
   });
 
   return NextResponse.json({
-    transcriptSessionId: session.id,
-    savedAt: session.createdAt,
+    transcriptSessionId: transcriptSession.id,
+    savedAt: transcriptSession.createdAt,
   });
 }
-

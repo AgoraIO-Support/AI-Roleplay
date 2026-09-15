@@ -4,7 +4,10 @@ import { generateFinalAssessment } from "@/src/lib/assessments/generator";
 import { saveFinalAssessment } from "@/src/lib/assessments/storage";
 import type { GenerateAssessmentInput } from "@/src/lib/assessments/types";
 import { getAuthSession } from "@/src/lib/auth/session";
-import { canUserAccessRolePlay } from "@/src/lib/roleplays/access";
+import {
+  canUserManageRolePlay,
+  canUserTakeRolePlay,
+} from "@/src/lib/roleplays/access";
 import { getRolePlayConfigById } from "@/src/lib/roleplays/serverStorage";
 import { getTranscriptSessionById } from "@/src/lib/transcripts/storage";
 
@@ -33,8 +36,15 @@ export async function POST(request: Request) {
       getTranscriptSessionById(transcriptSessionId),
     ]);
 
-    if (!roleplay || !canUserAccessRolePlay(session, roleplay)) {
-      return NextResponse.json({ error: "Roleplay access denied." }, { status: 403 });
+    if (
+      !roleplay ||
+      !canUserTakeRolePlay(session, roleplay) ||
+      canUserManageRolePlay(session, roleplay)
+    ) {
+      return NextResponse.json(
+        { error: "Customer-agent previews do not create final assessments." },
+        { status: 403 },
+      );
     }
 
     if (!transcriptSession || transcriptSession.scenarioId !== roleplay.id) {

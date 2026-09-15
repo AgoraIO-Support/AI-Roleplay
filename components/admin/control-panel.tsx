@@ -27,6 +27,7 @@ type EditDialogState = {
   position: string;
   role: AppRole;
   isActive: boolean;
+  resetPassword: string;
 };
 
 type DeadlineDraft = {
@@ -41,6 +42,45 @@ const defaultUserForm: UserForm = {
   role: "trainee",
   password: "",
 };
+
+const temporaryPasswordCharacters = {
+  lower: "abcdefghijkmnopqrstuvwxyz",
+  upper: "ABCDEFGHJKLMNPQRSTUVWXYZ",
+  number: "23456789",
+};
+
+function secureRandomIndex(length: number) {
+  const randomValue = new Uint32Array(1);
+  const upperBound = 0x1_0000_0000;
+  const usableRange = upperBound - (upperBound % length);
+
+  do {
+    crypto.getRandomValues(randomValue);
+  } while (randomValue[0] >= usableRange);
+
+  return randomValue[0] % length;
+}
+
+function randomCharacter(characters: string) {
+  return characters.charAt(secureRandomIndex(characters.length));
+}
+
+function generateTemporaryPassword() {
+  const allCharacters = Object.values(temporaryPasswordCharacters).join("");
+  const password = [
+    randomCharacter(temporaryPasswordCharacters.lower),
+    randomCharacter(temporaryPasswordCharacters.upper),
+    randomCharacter(temporaryPasswordCharacters.number),
+    ...Array.from({ length: 5 }, () => randomCharacter(allCharacters)),
+  ];
+
+  for (let index = password.length - 1; index > 0; index -= 1) {
+    const swapIndex = secureRandomIndex(index + 1);
+    [password[index], password[swapIndex]] = [password[swapIndex], password[index]];
+  }
+
+  return password.join("");
+}
 
 function formatDate(value?: string) {
   if (!value) {
@@ -143,7 +183,9 @@ export function ControlPanel({
   const [userForm, setUserForm] = useState<UserForm>(defaultUserForm);
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
+  const [isTemporaryPasswordVisible, setIsTemporaryPasswordVisible] = useState(false);
   const [editDialog, setEditDialog] = useState<EditDialogState | null>(null);
+  const [isResetPasswordVisible, setIsResetPasswordVisible] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState<SafeAuthUser | null>(null);
   const [isDeletingUser, setIsDeletingUser] = useState(false);
 
@@ -420,6 +462,7 @@ export function ControlPanel({
     }
 
     setUserForm(defaultUserForm);
+    setIsTemporaryPasswordVisible(false);
     setIsCreateUserOpen(false);
     setMessage(`User "${userForm.name.trim()}" was created successfully.`);
     await refreshPanel();
@@ -456,8 +499,35 @@ export function ControlPanel({
       return;
     }
 
+    if (editDialog.resetPassword) {
+      const passwordResponse = await fetch(
+        `/api/admin/users/${editDialog.user.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: editDialog.resetPassword }),
+        },
+      );
+      const passwordPayload = (await passwordResponse
+        .json()
+        .catch(() => ({}))) as { error?: string };
+
+      if (!passwordResponse.ok) {
+        setErrorMessage(
+          passwordPayload.error ??
+            `Unable to reset password. HTTP ${passwordResponse.status}.`,
+        );
+        return;
+      }
+    }
+
     setEditDialog(null);
-    setMessage("User details updated.");
+    setIsResetPasswordVisible(false);
+    setMessage(
+      editDialog.resetPassword
+        ? "User details and temporary password updated."
+        : "User details updated.",
+    );
     await refreshPanel();
   }
 
@@ -884,7 +954,8 @@ export function ControlPanel({
                           </Link>
                           <button
                             type="button"
-                            onClick={() =>
+                            onClick={() => {
+                              setIsResetPasswordVisible(false);
                               setEditDialog({
                                 user,
                                 email: user.email,
@@ -892,8 +963,9 @@ export function ControlPanel({
                                 position: user.position ?? "",
                                 role: user.role,
                                 isActive: user.isActive,
-                              })
-                            }
+                                resetPassword: "",
+                              });
+                            }}
                             className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium text-muted-foreground shadow-sm transition hover:bg-surface-sunken focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                           >
                             Edit
@@ -1633,26 +1705,87 @@ export function ControlPanel({
                   <option value="root_admin">Root Admin</option>
                 </select>
               </label>
-              <label className="block text-sm font-semibold text-muted-foreground">
-                Temporary Password
-                <input
-                  type="password"
-                  value={userForm.password}
-                  onChange={(event) =>
+              <div className="block text-sm font-semibold text-muted-foreground">
+                <label htmlFor="temporary-user-password">
+                  Temporary Password
+                </label>
+                <div className="relative mt-2">
+                  <input
+                    id="temporary-user-password"
+                    type={isTemporaryPasswordVisible ? "text" : "password"}
+                    value={userForm.password}
+                    onChange={(event) =>
+                      setUserForm((current) => ({
+                        ...current,
+                        password: event.target.value
+                          .replace(/[^a-zA-Z0-9]/g, "")
+                          .slice(0, 8),
+                      }))
+                    }
+                    className="w-full rounded-2xl border border-border bg-surface-sunken py-3 pl-4 pr-14 text-sm text-foreground outline-none transition focus:border-primary focus:bg-surface focus:ring-4 focus:ring-ring/30"
+                    placeholder="8-character password"
+                    autoComplete="new-password"
+                    inputMode="text"
+                    minLength={8}
+                    maxLength={8}
+                    pattern="[A-Za-z0-9]{8}"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setIsTemporaryPasswordVisible((visible) => !visible)
+                    }
+                    aria-label={
+                      isTemporaryPasswordVisible
+                        ? "Hide temporary password"
+                        : "Show temporary password"
+                    }
+                    aria-pressed={isTemporaryPasswordVisible}
+                    title={
+                      isTemporaryPasswordVisible
+                        ? "Hide password"
+                        : "Show password"
+                    }
+                    className="absolute inset-y-0 right-0 grid w-12 place-items-center rounded-r-2xl text-subtle-foreground outline-none transition-colors duration-200 hover:text-muted-foreground focus-visible:text-muted-foreground focus-visible:ring-4 focus-visible:ring-ring/30"
+                  >
+                    {isTemporaryPasswordVisible ? (
+                      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                        <path d="M3 3l18 18" />
+                        <path d="M10.6 10.6a2 2 0 002.8 2.8" />
+                        <path d="M9.4 5.2A9.5 9.5 0 0112 5c5 0 9 4.5 9 7a12 12 0 01-2.4 3.4" />
+                        <path d="M6.2 6.7C3.9 8.2 3 10.4 3 12c0 2.5 4 7 9 7a9.7 9.7 0 004.2-.9" />
+                      </svg>
+                    ) : (
+                      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                        <path d="M3 12s3.6-7 9-7 9 7 9 7-3.6 7-9 7-9-7-9-7z" />
+                        <circle cx="12" cy="12" r="2.75" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
                     setUserForm((current) => ({
                       ...current,
-                      password: event.target.value,
-                    }))
-                  }
-                  className="mt-2 w-full rounded-2xl border border-border px-4 py-3 text-sm outline-none transition focus:border-primary"
-                  placeholder="At least 8 characters"
-                />
-              </label>
+                      password: generateTemporaryPassword(),
+                    }));
+                    setIsTemporaryPasswordVisible(true);
+                  }}
+                  className="mt-3 inline-flex min-h-control-sm items-center justify-center rounded-xl border border-primary/20 bg-primary-subtle px-3 py-2 text-xs font-semibold text-primary transition hover:bg-primary-subtle/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                >
+                  Generate 8-character password
+                </button>
+              </div>
             </div>
             <div className="mt-6 flex flex-wrap justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setIsCreateUserOpen(false)}
+                onClick={() => {
+                  setIsCreateUserOpen(false);
+                  setIsTemporaryPasswordVisible(false);
+                }}
                 className="inline-flex items-center justify-center rounded-2xl border border-border bg-surface min-h-control px-4 py-2 text-sm font-semibold text-muted-foreground transition hover:bg-surface-sunken focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 Cancel
@@ -1747,6 +1880,99 @@ export function ControlPanel({
                   <option value="root_admin">Root Admin</option>
                 </select>
               </label>
+              <div className="rounded-2xl border border-primary/20 bg-primary-subtle/35 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      Reset temporary password
+                    </p>
+                    <p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">
+                      Set a new 8-character password for this user. It takes effect when you save changes.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditDialog((current) =>
+                        current
+                          ? {
+                              ...current,
+                              resetPassword: generateTemporaryPassword(),
+                            }
+                          : current,
+                      );
+                      setIsResetPasswordVisible(true);
+                    }}
+                    className="inline-flex min-h-control-sm items-center justify-center rounded-xl border border-primary/20 bg-surface px-3 py-2 text-xs font-semibold text-primary transition hover:bg-primary-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  >
+                    Generate password
+                  </button>
+                </div>
+                <div className="relative mt-3">
+                  <label className="sr-only" htmlFor="reset-user-password">
+                    New temporary password
+                  </label>
+                  <input
+                    id="reset-user-password"
+                    type={isResetPasswordVisible ? "text" : "password"}
+                    value={editDialog.resetPassword}
+                    onChange={(event) =>
+                      setEditDialog((current) =>
+                        current
+                          ? {
+                              ...current,
+                              resetPassword: event.target.value
+                                .replace(/[^a-zA-Z0-9]/g, "")
+                                .slice(0, 8),
+                            }
+                          : current,
+                      )
+                    }
+                    className="w-full rounded-xl border border-border bg-surface py-3 pl-4 pr-14 text-sm text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-ring/30"
+                    placeholder="Leave blank to keep the current password"
+                    autoComplete="new-password"
+                    inputMode="text"
+                    minLength={editDialog.resetPassword ? 8 : undefined}
+                    maxLength={8}
+                    pattern={
+                      editDialog.resetPassword
+                        ? "(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[A-Za-z\\d]{8}"
+                        : undefined
+                    }
+                    title="Use 8 letters and numbers with uppercase, lowercase, and a number."
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setIsResetPasswordVisible((visible) => !visible)
+                    }
+                    aria-label={
+                      isResetPasswordVisible
+                        ? "Hide new temporary password"
+                        : "Show new temporary password"
+                    }
+                    aria-pressed={isResetPasswordVisible}
+                    title={
+                      isResetPasswordVisible ? "Hide password" : "Show password"
+                    }
+                    className="absolute inset-y-0 right-0 grid w-12 place-items-center rounded-r-xl text-subtle-foreground outline-none transition-colors duration-200 hover:text-muted-foreground focus-visible:text-muted-foreground focus-visible:ring-4 focus-visible:ring-ring/30"
+                  >
+                    {isResetPasswordVisible ? (
+                      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                        <path d="M3 3l18 18" />
+                        <path d="M10.6 10.6a2 2 0 002.8 2.8" />
+                        <path d="M9.4 5.2A9.5 9.5 0 0112 5c5 0 9 4.5 9 7a12 12 0 01-2.4 3.4" />
+                        <path d="M6.2 6.7C3.9 8.2 3 10.4 3 12c0 2.5 4 7 9 7a9.7 9.7 0 004.2-.9" />
+                      </svg>
+                    ) : (
+                      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                        <path d="M3 12s3.6-7 9-7 9 7 9 7-3.6 7-9 7-9-7z" />
+                        <circle cx="12" cy="12" r="2.75" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
               <div className="rounded-2xl border border-border bg-surface-sunken p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div>
@@ -1799,7 +2025,10 @@ export function ControlPanel({
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => setEditDialog(null)}
+                  onClick={() => {
+                    setEditDialog(null);
+                    setIsResetPasswordVisible(false);
+                  }}
                   className="inline-flex items-center justify-center rounded-2xl border border-border bg-surface min-h-control px-4 py-2 text-sm font-semibold text-muted-foreground transition hover:bg-surface-sunken focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   Cancel

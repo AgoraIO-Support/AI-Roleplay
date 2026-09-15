@@ -114,8 +114,14 @@ export async function createAuthUser(input: {
   const position = input.position?.trim() || "";
   const password = input.password;
 
-  if (!email || !name || !isAppRole(input.role) || password.length < 8) {
-    throw new Error("Name, valid email, role, and an 8+ character password are required.");
+  if (!email || !name || !isAppRole(input.role)) {
+    throw new Error("Name, valid email, and role are required.");
+  }
+
+  if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8}$/.test(password)) {
+    throw new Error(
+      "Temporary passwords must be exactly 8 characters and include uppercase, lowercase, and a number.",
+    );
   }
 
   const emailExists = Boolean(await prisma.appUser.findUnique({ where: { email } }));

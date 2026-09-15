@@ -37,6 +37,7 @@ function providerInvalidField(result: ConvoAiJoinResult | null) {
 
 type ConvoAiJoinPayload = {
   name: string;
+  pipeline_id: string;
   properties: {
     channel: string;
     token: string;
@@ -45,13 +46,6 @@ type ConvoAiJoinPayload = {
     enable_string_uid: boolean;
     idle_timeout: number;
     llm: {
-      credential_mode: "managed";
-      vendor: "openai";
-      style: "openai";
-      url: string;
-      params: {
-        model: string;
-      };
       system_messages: Array<{
         role: "system";
         content: string;
@@ -64,18 +58,7 @@ type ConvoAiJoinPayload = {
         delay_ms: number;
       };
     };
-    asr: {
-      credential_mode: "managed";
-      vendor: string;
-      params: {
-        url: string;
-        model: string;
-        language: string;
-      };
-    };
     tts: {
-      credential_mode: "managed";
-      vendor: "minimax";
       params: {
         url: string;
         model: string;
@@ -87,6 +70,14 @@ type ConvoAiJoinPayload = {
           sample_rate: number;
         };
       };
+    };
+    parameters: {
+      silence_config: {
+        timeout_ms: number;
+      };
+      data_channel: "datastream";
+      enable_metrics: boolean;
+      enable_error_message: boolean;
     };
   };
 };
@@ -191,7 +182,6 @@ export async function POST(request: Request) {
   const greetingMessageSwitch = roleplay.generated.greeting_message_switch;
   const delayMs = roleplay.generated.delay_ms;
   const requestedVoiceId = roleplay.character.voiceId?.trim() ?? "";
-
   // A random channel name prevents concurrent sessions from ever sharing RTC credentials.
   const channelName = `roleplay-session-${randomUUID()}`;
   const traineeUid = "7001001";
@@ -200,16 +190,8 @@ export async function POST(request: Request) {
   const appCertificate = process.env.AGORA_APP_CERTIFICATE ?? "";
   const customerId = process.env.AGORA_CUSTOMER_ID ?? "";
   const customerSecret = process.env.AGORA_CUSTOMER_SECRET ?? "";
-  const asrVendor = "deepgram";
-  const asrModel = "nova-3";
-  const llmVendor = "openai";
-  const llmUrl = "https://api.openai.com/v1/chat/completions";
-  // This is an Agora-managed model selection, not an app-provided OpenAI credential.
-  const llmModel = "gpt-4o-mini";
-  const llmParams = {
-    model: llmModel,
-  };
-  const ttsVendor = "minimax";
+  // This is a non-secret Studio configuration identifier. It keeps vendor credentials in Agora.
+  const studioPipelineId = "bb9a816e1e8049e1bb5857b13dd675bc";
   const ttsModel = withDefault(process.env.CONVOAI_MINIMAX_TTS_MODEL, "speech-2.8-turbo");
   const ttsUrl = withDefault(
     process.env.CONVOAI_TTS_URL,
@@ -269,20 +251,16 @@ export async function POST(request: Request) {
 
   const joinPayload: ConvoAiJoinPayload = {
     name: `roleplay-session-${Date.now()}`,
+    pipeline_id: studioPipelineId,
     properties: {
       channel: channelName,
       token: agentRtcToken,
       agent_rtc_uid: agentUid,
       remote_rtc_uids: [traineeUid],
       enable_string_uid: false,
-      idle_timeout: 120,
+      // Keep the session available after a silence reminder so learners can return.
+      idle_timeout: 300,
       llm: {
-        credential_mode: "managed",
-        vendor: llmVendor,
-        style: "openai",
-        // Agora requires a valid public provider endpoint even when it supplies the credentials.
-        url: llmUrl,
-        params: llmParams,
         system_messages: [
           {
             role: "system",
@@ -297,18 +275,8 @@ export async function POST(request: Request) {
           delay_ms: delayMs,
         },
       },
-      asr: {
-        credential_mode: "managed",
-        vendor: asrVendor,
-        params: {
-          url: "wss://api.deepgram.com/v1/listen",
-          model: asrModel,
-          language: "en-US",
-        },
-      },
+      // Override delivery settings only; Studio retains its managed MiniMax credentials.
       tts: {
-        credential_mode: "managed",
-        vendor: ttsVendor,
         params: {
           url: ttsUrl,
           model: ttsModel,
@@ -320,6 +288,16 @@ export async function POST(request: Request) {
             sample_rate: 44100,
           },
         },
+      },
+      // Give learners a two-minute grace period before the pipeline's silence handling runs.
+      parameters: {
+        silence_config: {
+          timeout_ms: 120_000,
+        },
+        // The session page receives live transcripts through RTC stream-message events.
+        data_channel: "datastream",
+        enable_metrics: true,
+        enable_error_message: true,
       },
     },
   };
@@ -374,8 +352,16 @@ export async function POST(request: Request) {
     );
   }
 
+  // Keep a server-side record of the non-secret diagnostic identifier for support follow-up.
+  console.info("ConvoAI agent started", {
+    agentId,
+    channelName,
+    createdAt: new Date().toISOString(),
+  });
+
   const response = NextResponse.json({
     status: asString(joinResult?.status).trim() || "RUNNING",
+    agentId,
     traineeUid,
     agentUid,
     engineerRtc: {
