@@ -63,6 +63,11 @@ export const navigationItems: NavItem[] = [
         href: "/control-panel/feedback",
         allowedRoles: ["root_admin"],
       },
+      {
+        title: "Agents Log",
+        href: "/control-panel/agents",
+        allowedRoles: ["root_admin"],
+      },
     ],
   },
   { title: "Profile", href: "/profile", icon: "profile" },

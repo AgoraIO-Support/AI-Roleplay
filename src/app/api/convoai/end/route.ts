@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getAuthSession } from "@/src/lib/auth/session";
+import { updateConvoAiAgentLogStatus } from "@/src/lib/convoai/agentLog";
 import {
   convoAiAgentCookieName,
   convoAiAgentCookieOptions,
@@ -57,6 +58,14 @@ export async function POST() {
       },
       { status: leaveResponse.status },
     );
+  }
+
+  // The Agora leave request has been accepted; the log refresh confirms STOPPED.
+  try {
+    await updateConvoAiAgentLogStatus(agentId, "STOPPING");
+  } catch (error) {
+    // Ending the call must succeed even if troubleshooting storage is unavailable.
+    console.error("ConvoAI agent log status update failed", { agentId, error });
   }
 
   const response = NextResponse.json({

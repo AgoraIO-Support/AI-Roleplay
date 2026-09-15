@@ -137,3 +137,19 @@ model FeedbackComment {
 
   @@index([feedbackSubmissionId, createdAt])
 }
+
+model ConvoAiAgentLog {
+  id          String   @id @default(cuid())
+  agentId     String   @unique
+  channelName String
+  status      String
+  startedById String?
+  startedByName String?
+  startedByEmail String?
+  safePayload Json
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([channelName])
+  @@index([startedById])
+}

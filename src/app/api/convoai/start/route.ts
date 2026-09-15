@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getAuthSession } from "@/src/lib/auth/session";
+import { recordConvoAiAgentLog } from "@/src/lib/convoai/agentLog";
 import {
   convoAiAgentCookieName,
   convoAiAgentCookieOptions,
@@ -95,6 +96,16 @@ function numberWithDefault(value: unknown, fallback: number) {
   const normalized =
     typeof value === "number" ? value : Number(asString(value).trim());
   return Number.isFinite(normalized) ? normalized : fallback;
+}
+
+function redactedJoinPayload(payload: ConvoAiJoinPayload) {
+  const {
+    properties: { token: _rtcToken, ...safeProperties },
+    ...safeRequest
+  } = payload;
+
+  // The RTC token is the only session credential in this request. Never persist it.
+  return { ...safeRequest, properties: safeProperties };
 }
 
 function rolePlaySystemMessage(roleplay: RolePlayConfig) {
@@ -352,6 +363,25 @@ export async function POST(request: Request) {
     );
   }
 
+  const status = asString(joinResult?.status).trim() || "RUNNING";
+
+  // Logging must never make a successfully started customer call fail.
+  try {
+    await recordConvoAiAgentLog({
+      agentId,
+      channelName,
+      status,
+      startedBy: {
+        id: session.id,
+        name: session.name,
+        email: session.email,
+      },
+      safePayload: redactedJoinPayload(joinPayload),
+    });
+  } catch (error) {
+    console.error("ConvoAI agent log write failed", { agentId, error });
+  }
+
   // Keep a server-side record of the non-secret diagnostic identifier for support follow-up.
   console.info("ConvoAI agent started", {
     agentId,
@@ -360,7 +390,7 @@ export async function POST(request: Request) {
   });
 
   const response = NextResponse.json({
-    status: asString(joinResult?.status).trim() || "RUNNING",
+    status,
     agentId,
     traineeUid,
     agentUid,
